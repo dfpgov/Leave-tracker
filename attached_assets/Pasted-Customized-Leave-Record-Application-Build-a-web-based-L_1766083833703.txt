@@ -1,0 +1,223 @@
+Customized Leave Record Application
+
+Build a web-based Leave Record Management Application using HTML, CSS, JavaScript (or React if preferred) with the following requirements.
+Use Local Storage for data persistence initially (no backend/database).
+
+1. Authentication System
+
+Implement a simple login system.
+
+Default credentials:
+
+Username: Akash
+
+Password: 123456
+
+After successful login, redirect to the Dashboard.
+
+Prevent access to other pages without login.
+
+2. Application Structure
+
+Create a tab-based or sidebar-based layout with the following pages:
+
+Dashboard
+
+Employee Management
+
+Holiday Management
+
+Leave Type Management
+
+Leave Request Log
+
+Analytics Dashboard (Visualization)
+
+Each page must display data in a table format.
+
+3. Employee Management (CRUD)
+
+Create a full CRUD application for employees.
+
+Fields:
+
+Employee ID (Auto-generated, format: EMP001, EMP002, etc.)
+
+Name
+
+Designation
+
+Section / Department
+
+Gender
+
+Last Edited Time (auto update on create/update)
+
+Features:
+
+Add, Edit, Delete employees
+
+Display all employees in a table
+
+Store data in Local Storage
+
+Automatically generate Employee ID
+
+Show Last Edited Date & Time
+
+4. Holiday Management
+
+Manage official holidays.
+
+Fields:
+
+Holiday Name
+
+Start Date
+
+End Date
+
+Total Days (auto-calculated from start & end date)
+
+Features:
+
+Auto calculate number of days
+
+Display holidays in a table
+
+Store data in Local Storage
+
+5. Leave Type Management
+
+Manage different leave types.
+
+Fields:
+
+Leave Name
+
+Leave ID (auto-generated)
+
+Maximum Days
+
+If blank, then there is no limit
+
+Rules:
+
+Only Casual Leave exists initially
+
+Casual Leave cannot exceed 20 days
+
+Features:
+
+Validation for max days
+
+Data displayed in a table
+
+Store in Local Storage
+
+6. Leave Request Log
+
+Store and manage employee leave requests.
+
+Fields:
+
+Employee Name (with popup search / dropdown)
+
+Show Designation and Department below the name using <sup> or small text
+
+Leave Type
+
+Start Date
+
+End Date
+
+Approved Days (auto-calculated)
+
+File Picker (for attachment)
+
+Rich Text Editor for comments
+
+Comment system (simple threaded or timestamped comments)
+
+Features:
+
+Filter options:
+
+Search by employee name
+
+Filter by start date
+
+Filter by end date
+
+Display all requests in a table
+
+Store everything in Local Storage
+
+7. Main Dashboard
+
+After leave requests are submitted:
+
+Features:
+
+Display summary data in a table
+
+Use merged cells for Casual Leave:
+
+Show Used Days
+
+Show Remaining Days
+
+Do not allow Casual Leave beyond 20 days
+
+Show Total Leave Days in a dedicated cell
+
+Auto-update dashboard data when new leave is added
+
+8. Analytics / Visualization Dashboard
+
+Create an additional dashboard for visual insights.
+
+Features:
+
+Charts (using Chart.js or similar):
+
+Total employees
+
+Employees currently on leave
+
+Leave type distribution
+
+Visualize:
+
+Who is on leave today
+
+How many employees are on leave
+
+Clean, modern chart design
+
+Data should sync with Local Storage
+
+9. General UI & UX Requirements
+
+Clean, professional dashboard layout
+
+Responsive design
+
+Tables should support scrolling if data grows
+
+Basic validation messages
+
+Clear navigation between tabs
+
+10. Technical Notes
+
+Use Local Storage only
+
+No backend or authentication server
+
+Code should be modular and readable
+
+Add comments where logic is important
+
+Goal:
+A fully functional, organized, and scalable Leave Record Management System suitable for later backend integration.
