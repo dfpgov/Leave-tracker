@@ -491,21 +491,23 @@ export default function LeaveRequests() {
                </DialogHeader>
                <div className="space-y-4">
                  <div>
-                   <FormLabel>Start Date</FormLabel>
+                   <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Start Date</label>
                    <Input 
                      type="date"
                      value={startDateFilter}
                      onChange={(e) => setStartDateFilter(e.target.value)}
                      data-testid="input-filter-start-date"
+                     className="mt-1.5"
                    />
                  </div>
                  <div>
-                   <FormLabel>End Date</FormLabel>
+                   <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">End Date</label>
                    <Input 
                      type="date"
                      value={endDateFilter}
                      onChange={(e) => setEndDateFilter(e.target.value)}
                      data-testid="input-filter-end-date"
+                     className="mt-1.5"
                    />
                  </div>
                  <div className="flex gap-2">
