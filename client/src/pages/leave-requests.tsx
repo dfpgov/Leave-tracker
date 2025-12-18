@@ -40,7 +40,6 @@ import { Plus, Filter, Search, Bold, Italic, List, Download, X } from "lucide-re
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
-import "jspdf/dist/polyfill.es";
 
 const requestSchema = z.object({
   employeeId: z.string().min(1, "Employee is required"),
