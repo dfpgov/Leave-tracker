@@ -38,6 +38,7 @@ export interface LeaveRequest {
   comments: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   timestamp: string;
+  attachmentFileName?: string; // Name of the attached file
 }
 
 // Initial Data Seeds
@@ -195,5 +196,23 @@ export const storage = {
         return acc;
       }, {} as Record<string, number>)
     };
+  },
+
+  // Employee Leave Summary
+  getEmployeeLeaveSummary: (employeeId: string) => {
+    const requests = storage.getLeaveRequests().filter(r => r.employeeId === employeeId && r.status === 'Approved');
+    const totalDays = requests.reduce((acc, curr) => acc + curr.approvedDays, 0);
+    const leaveBreakdown = requests.reduce((acc, curr) => {
+      const existing = acc.find(item => item.leaveType === curr.leaveTypeName);
+      if (existing) {
+        existing.days += curr.approvedDays;
+        existing.records.push(curr);
+      } else {
+        acc.push({ leaveType: curr.leaveTypeName, days: curr.approvedDays, records: [curr] });
+      }
+      return acc;
+    }, [] as Array<{ leaveType: string; days: number; records: LeaveRequest[] }>);
+
+    return { totalDays, leaveBreakdown };
   }
 };

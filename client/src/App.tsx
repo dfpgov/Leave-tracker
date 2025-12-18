@@ -11,6 +11,7 @@ import Holidays from "@/pages/holidays";
 import LeaveTypes from "@/pages/leave-types";
 import LeaveRequests from "@/pages/leave-requests";
 import Analytics from "@/pages/analytics";
+import EmployeeLeaveSummary from "@/pages/employee-leave-summary";
 import Layout from "@/components/layout";
 import { storage } from "@/lib/storage";
 
@@ -50,6 +51,9 @@ function Router() {
       </Route>
       <Route path="/analytics">
         <ProtectedRoute component={Analytics} />
+      </Route>
+      <Route path="/employee-leave-summary">
+        <ProtectedRoute component={EmployeeLeaveSummary} />
       </Route>
 
       <Route component={NotFound} />

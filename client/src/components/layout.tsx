@@ -7,7 +7,8 @@ import {
   Settings2, 
   FileText, 
   BarChart3, 
-  LogOut 
+  LogOut,
+  UserCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { storage } from "@/lib/storage";
@@ -30,6 +31,7 @@ export default function Layout({ children }: LayoutProps) {
     { label: "Holidays", icon: CalendarDays, href: "/holidays" },
     { label: "Leave Types", icon: Settings2, href: "/leave-types" },
     { label: "Leave Requests", icon: FileText, href: "/leave-requests" },
+    { label: "Leave Summary", icon: UserCheck, href: "/employee-leave-summary" },
     { label: "Analytics", icon: BarChart3, href: "/analytics" },
   ];
 
