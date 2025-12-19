@@ -53,6 +53,8 @@ export interface LeaveRequest {
   attachmentFileName?: string;
   attachmentBase64?: string;
   doneBy: string; // User ID
+  updatedBy?: string; // User ID who last updated
+  updatedAt?: string; // When it was last updated
 }
 
 // Initial Data Seeds

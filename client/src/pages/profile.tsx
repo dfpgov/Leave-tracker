@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { storage, User } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,12 +19,10 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { User as UserIcon, Lock, Shield, Mail } from "lucide-react";
-import { useLocation } from "wouter";
 
 export default function Profile() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [password, setPassword] = useState("");
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -50,7 +49,6 @@ export default function Profile() {
       description: "Your password has been changed successfully.",
     });
     setPassword("");
-    setShowPasswordChange(false);
   };
 
   const handleForgotPassword = () => {
@@ -60,9 +58,7 @@ export default function Profile() {
     });
   };
 
-  if (!currentUser) {
-    return null;
-  }
+  if (!currentUser) return null;
 
   return (
     <div className="space-y-6">
@@ -71,7 +67,6 @@ export default function Profile() {
         <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
       </div>
 
-      {/* Profile Card */}
       <Card className="border-2">
         <CardHeader>
           <div className="flex items-center gap-4">
@@ -89,7 +84,6 @@ export default function Profile() {
         </CardHeader>
       </Card>
 
-      {/* Account Information */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Account Information</CardTitle>
@@ -126,7 +120,6 @@ export default function Profile() {
         </CardContent>
       </Card>
 
-      {/* Security Settings */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Security Settings</CardTitle>
@@ -134,7 +127,7 @@ export default function Profile() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
-            <Dialog open={showPasswordChange} onOpenChange={setShowPasswordChange}>
+            <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" className="w-full justify-start">
                   <Lock className="mr-2 h-4 w-4" />
@@ -171,24 +164,16 @@ export default function Profile() {
               Forgot Password
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Your password should be at least 8 characters long and include a mix of uppercase, lowercase, and numbers.
-          </p>
         </CardContent>
       </Card>
 
-      {/* App Controls */}
       {currentUser.role === 'Admin' && (
         <Card className="border-2 border-primary/30 bg-primary/5">
           <CardHeader>
             <CardTitle className="text-lg">Admin Controls</CardTitle>
             <CardDescription>Manage users and system settings</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Button className="w-full justify-start" variant="default">
-              <UserIcon className="mr-2 h-4 w-4" />
-              Go to User Management
-            </Button>
+          <CardContent>
             <p className="text-sm text-muted-foreground">
               Only administrators can add and delete users from the system.
             </p>
@@ -196,7 +181,6 @@ export default function Profile() {
         </Card>
       )}
 
-      {/* Permissions Info */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Your Permissions</CardTitle>
