@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { storage, Employee } from "@/lib/storage";
+import { useState, useEffect, useRef } from "react";
+import { storage, LeaveRequest, Employee, LeaveType, calculateDays, User } from "@/lib/storage";
 import {
   Table,
   TableBody,
@@ -16,315 +16,584 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Eye, Download, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Plus, Filter, Search, Download, X, Eye } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
-import { useToast } from "@/hooks/use-toast";
 
-export default function EmployeeLeaveSummary() {
+const requestSchema = z.object({
+  employeeId: z.string().min(1, "Employee is required"),
+  leaveTypeId: z.string().min(1, "Leave type is required"),
+  startDate: z.string().min(1, "Start date is required"),
+  endDate: z.string().min(1, "End date is required"),
+  approvedDays: z.string().min(1, "Approved days is required"),
+  comments: z.string().optional(),
+  attachment: z.any().optional(),
+});
+
+export default function LeaveRequests() {
+  const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
-  const [nameFilter, setNameFilter] = useState("");
-  const [dateFromFilter, setDateFromFilter] = useState("");
-  const [dateToFilter, setDateToFilter] = useState("");
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [employeeFilterId, setEmployeeFilterId] = useState("");
+  const [startDateFilter, setStartDateFilter] = useState("");
+  const [endDateFilter, setEndDateFilter] = useState("");
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ base64: string; name: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  const form = useForm<z.infer<typeof requestSchema>>({
+    resolver: zodResolver(requestSchema),
+  });
+
   useEffect(() => {
-    const allEmployees = storage.getEmployees();
-    setEmployees(allEmployees);
-    setFilteredEmployees(allEmployees);
+    refreshData();
+    setCurrentUser(storage.getCurrentUser());
   }, []);
 
-  const applyFilters = (
-    emps: Employee[],
-    name: string,
-    dateFrom: string,
-    dateTo: string
-  ) => {
-    let filtered = emps;
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowEmployeeDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-    if (name) {
-      filtered = filtered.filter((e) =>
-        e.name.toLowerCase().includes(name.toLowerCase())
-      );
-    }
-
-    if (dateFrom || dateTo) {
-      filtered = filtered.filter((emp) => {
-        const leaves = storage.getLeaveRequests().filter(
-          (r) => r.employeeId === emp.id && r.status === "Approved"
-        );
-        if (leaves.length === 0) return false;
-
-        return leaves.some((leave) => {
-          const leaveDate = new Date(leave.startDate);
-          const fromDate = dateFrom ? new Date(dateFrom) : null;
-          const toDate = dateTo ? new Date(dateTo) : null;
-
-          if (fromDate && leaveDate < fromDate) return false;
-          if (toDate && leaveDate > toDate) return false;
-          return true;
-        });
-      });
-    }
-
-    setFilteredEmployees(filtered);
+  const refreshData = () => {
+    setRequests(storage.getLeaveRequests());
+    setEmployees(storage.getEmployees());
+    setLeaveTypes(storage.getLeaveTypes());
   };
 
-  const handleNameFilterChange = (value: string) => {
-    setNameFilter(value);
-    applyFilters(employees, value, dateFromFilter, dateToFilter);
-  };
+  const onSubmit = (values: z.infer<typeof requestSchema>) => {
+    const employee = employees.find(e => e.id === values.employeeId);
+    const leaveType = leaveTypes.find(t => t.id === values.leaveTypeId);
 
-  const handleDateFromChange = (value: string) => {
-    setDateFromFilter(value);
-    applyFilters(employees, nameFilter, value, dateToFilter);
-  };
+    if (!employee || !leaveType) return;
 
-  const handleDateToChange = (value: string) => {
-    setDateToFilter(value);
-    applyFilters(employees, nameFilter, dateFromFilter, value);
-  };
-
-  const handleClearFilters = () => {
-    setNameFilter("");
-    setDateFromFilter("");
-    setDateToFilter("");
-    setFilteredEmployees(employees);
-  };
-
-  const downloadEmployeeLeavePDF = (employee: Employee) => {
-    const summary = storage.getEmployeeLeaveSummary(employee.id);
+    const approvedDaysNum = parseInt(values.approvedDays);
     
-    if (summary.totalDays === 0) {
+    if (leaveType.name === "Casual Leave" && leaveType.maxDays) {
+       const usedDays = requests
+         .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved')
+         .reduce((acc, curr) => acc + curr.approvedDays, 0);
+         
+       if (usedDays + approvedDaysNum > leaveType.maxDays) {
+         toast({
+           title: "Limit Exceeded",
+           description: `Cannot approve request. ${employee.name} has already used ${usedDays} Casual Leave days. Limit is ${leaveType.maxDays}.`,
+           variant: "destructive"
+         });
+         return;
+       }
+    }
+
+    const attachmentFile = form.getValues('attachment')?.[0];
+    const isImage = attachmentFile && /^image\/(png|jpg|jpeg|gif|webp)$/.test(attachmentFile.type);
+    
+    if (attachmentFile && !isImage) {
       toast({
-        title: "No Data",
-        description: `${employee.name} has no approved leaves.`,
+        title: "Invalid File",
+        description: "Only image files (PNG, JPG, GIF, WebP) are allowed.",
         variant: "destructive"
       });
       return;
     }
 
+    let attachmentBase64: string | undefined;
+    if (attachmentFile && isImage) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        const newReq: LeaveRequest = {
+          id: Math.random().toString(36).substr(2, 9),
+          employeeId: employee.id,
+          employeeName: employee.name,
+          designation: employee.designation,
+          department: employee.department,
+          leaveTypeId: leaveType.id,
+          leaveTypeName: leaveType.name,
+          startDate: values.startDate,
+          endDate: values.endDate,
+          approvedDays: approvedDaysNum,
+          comments: values.comments || "",
+          status: "Approved", 
+          timestamp: new Date().toISOString(),
+          attachmentFileName: attachmentFile.name,
+          attachmentBase64: base64,
+          doneBy: storage.getCurrentUserId(),
+          updatedBy: storage.getCurrentUserId(),
+          updatedAt: new Date().toISOString(),
+        };
+        storage.saveLeaveRequest(newReq);
+        refreshData();
+        setIsDialogOpen(false);
+        form.reset();
+        toast({
+          title: "Leave Request Logged",
+          description: "Request added successfully.",
+        });
+      };
+      reader.readAsDataURL(attachmentFile);
+      return;
+    }
+
+    const newRequest: LeaveRequest = {
+      id: Math.random().toString(36).substr(2, 9),
+      employeeId: employee.id,
+      employeeName: employee.name,
+      designation: employee.designation,
+      department: employee.department,
+      leaveTypeId: leaveType.id,
+      leaveTypeName: leaveType.name,
+      startDate: values.startDate,
+      endDate: values.endDate,
+      approvedDays: approvedDaysNum,
+      comments: values.comments || "",
+      status: "Approved", 
+      timestamp: new Date().toISOString(),
+      attachmentFileName: attachmentFile?.name,
+      doneBy: storage.getCurrentUserId(),
+      updatedBy: storage.getCurrentUserId(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    storage.saveLeaveRequest(newRequest);
+    refreshData();
+    setIsDialogOpen(false);
+    form.reset();
+    toast({
+      title: "Leave Request Logged",
+      description: "Request added successfully.",
+    });
+  };
+
+  const filteredEmployees = employees.filter(e =>
+    e.name.toLowerCase().includes(employeeSearchTerm.toLowerCase())
+  );
+
+  const filteredRequests = requests.filter(request => {
+    const matchesSearch = !searchTerm || 
+      request.employeeName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesEmployee = !employeeFilterId || request.employeeId === employeeFilterId;
+    const matchesStartDate = !startDateFilter || new Date(request.startDate) >= new Date(startDateFilter);
+    const matchesEndDate = !endDateFilter || new Date(request.endDate) <= new Date(endDateFilter);
+    
+    return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate;
+  });
+
+  const downloadPDF = () => {
     try {
       const doc = new jsPDF();
-      const pageHeight = doc.internal.pageSize.getHeight();
       const pageWidth = doc.internal.pageSize.getWidth();
       let yPosition = 15;
 
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.text("Employee Leave Summary", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 8;
-
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Name: ${employee.name}`, 15, yPosition);
-      yPosition += 5;
-      doc.text(`Designation: ${employee.designation}`, 15, yPosition);
-      yPosition += 5;
-      doc.text(`Department: ${employee.department}`, 15, yPosition);
-      yPosition += 5;
-      doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
+      doc.text("Leave Requests Report", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 10;
 
-      doc.setFillColor(220, 220, 220);
-      doc.rect(15, yPosition - 2, pageWidth - 30, 12, "F");
-      doc.setFont("helvetica", "bold");
-      doc.text(`Total Leave Days Taken: ${summary.totalDays}`, pageWidth / 2, yPosition + 3, { align: "center" });
-      yPosition += 15;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(12);
-      doc.text("Leave Breakdown by Type:", 15, yPosition);
-      yPosition += 7;
-
       doc.setFontSize(10);
-      summary.leaveBreakdown.forEach((item) => {
-        doc.setFont("helvetica", "bold");
-        doc.text(`${item.leaveType}: ${item.days} days`, 15, yPosition);
-        yPosition += 6;
+      doc.setFont("helvetica", "normal");
+      doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
+      yPosition += 8;
 
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        item.records.forEach((record) => {
-          if (yPosition > pageHeight - 20) {
-            doc.addPage();
-            yPosition = 15;
-          }
+      const tableData = filteredRequests.map(r => [
+        r.employeeName,
+        r.leaveTypeName,
+        format(new Date(r.startDate), "MMM d, yyyy"),
+        format(new Date(r.endDate), "MMM d, yyyy"),
+        r.approvedDays.toString(),
+        r.status,
+      ]);
 
-          const dateRange = `${format(new Date(record.startDate), "MMM d")} - ${format(new Date(record.endDate), "MMM d, yyyy")}`;
-          doc.text(`  • ${dateRange} (${record.approvedDays} days)`, 20, yPosition);
-          yPosition += 4;
-        });
-
-        doc.setFontSize(10);
-        yPosition += 2;
+      (doc as any).autoTable({
+        startY: yPosition,
+        head: [["Employee", "Leave Type", "Start Date", "End Date", "Days", "Status"]],
+        body: tableData,
+        theme: "grid",
+        styles: { fontSize: 9 },
       });
 
-      yPosition = pageHeight - 10;
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "italic");
-      doc.text(`This is an auto-generated report. For official records, contact HR.`, pageWidth / 2, yPosition, { align: "center" });
-
-      doc.save(`${employee.name}-leave-summary.pdf`);
+      doc.save("leave-requests.pdf");
       toast({
         title: "PDF Downloaded",
-        description: `Leave summary for ${employee.name} downloaded successfully.`,
+        description: "Leave requests report downloaded successfully.",
       });
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to generate PDF.",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
 
+  const openAddDialog = () => {
+    form.reset({
+      employeeId: "",
+      leaveTypeId: "",
+      startDate: "",
+      endDate: "",
+      approvedDays: "",
+      comments: "",
+    });
+    setIsDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold font-heading">Employee Leave Summary</h1>
-        <p className="text-muted-foreground mt-1">View and download leave records for all employees</p>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-card rounded-xl border shadow-sm p-4 space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold">Filters</h3>
-          {(nameFilter || dateFromFilter || dateToFilter) && (
-            <Button variant="ghost" size="sm" onClick={handleClearFilters}>
-              <X className="h-4 w-4 mr-2" /> Clear Filters
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold font-heading">Leave Requests</h1>
+          <p className="text-muted-foreground mt-1">Manage employee leave requests</p>
+        </div>
+        
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={openAddDialog} className="shadow-lg shadow-primary/20">
+              <Plus className="mr-2 h-4 w-4" /> Add Request
             </Button>
-          )}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Employee Name</label>
-            <Input
-              placeholder="Search by name..."
-              value={nameFilter}
-              onChange={(e) => handleNameFilterChange(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Date From</label>
-            <Input
-              type="date"
-              value={dateFromFilter}
-              onChange={(e) => handleDateFromChange(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Date To</label>
-            <Input
-              type="date"
-              value={dateToFilter}
-              onChange={(e) => handleDateToChange(e.target.value)}
-            />
-          </div>
-        </div>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add Leave Request</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="employeeId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Employee</FormLabel>
+                      <FormControl>
+                        <div className="relative" ref={dropdownRef}>
+                          <Input
+                            placeholder="Search employee..."
+                            value={employeeSearchTerm}
+                            onChange={(e) => {
+                              setEmployeeSearchTerm(e.target.value);
+                              setShowEmployeeDropdown(true);
+                            }}
+                            onFocus={() => setShowEmployeeDropdown(true)}
+                            className="pl-9"
+                          />
+                          {showEmployeeDropdown && filteredEmployees.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 bg-white border border-input rounded-md shadow-md z-50 mt-1">
+                              {filteredEmployees.map(emp => (
+                                <div
+                                  key={emp.id}
+                                  className="px-3 py-2 hover:bg-muted cursor-pointer"
+                                  onClick={() => {
+                                    field.onChange(emp.id);
+                                    setEmployeeSearchTerm(emp.name);
+                                    setShowEmployeeDropdown(false);
+                                  }}
+                                >
+                                  <div className="font-medium">{emp.name}</div>
+                                  <div className="text-xs text-muted-foreground">{emp.designation}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="leaveTypeId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Leave Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select leave type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {leaveTypes.map(type => (
+                            <SelectItem key={type.id} value={type.id}>
+                              {type.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                    control={form.control}
+                    name="startDate"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Start Date</FormLabel>
+                        <FormControl>
+                            <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="endDate"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>End Date</FormLabel>
+                        <FormControl>
+                            <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="approvedDays"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Approved Days</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="Enter number of approved days" min="1" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                    control={form.control}
+                    name="attachment"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Attachment - Images Only (Optional)</FormLabel>
+                            <FormControl>
+                                <div className="flex items-center gap-2">
+                                    <Input type="file" accept="image/*" className="cursor-pointer file:text-foreground" {...field} value={undefined} onChange={(e) => field.onChange(e.target.files)} />
+                                </div>
+                            </FormControl>
+                            <p className="text-xs text-muted-foreground">Supported: PNG, JPG, GIF, WebP</p>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="comments"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Comments</FormLabel>
+                        <FormControl>
+                            <Textarea placeholder="Additional comments..." className="resize-none" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <Button type="submit" className="w-full">
+                  Add Request
+                </Button>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Table */}
-      <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+      <div className="bg-card rounded-xl border shadow-sm">
+        <div className="p-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+           <div className="relative flex-1 max-w-sm">
+             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+             <Input 
+                placeholder="Search requests..." 
+                className="pl-9 bg-muted/30" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+             />
+           </div>
+
+           <div className="flex gap-2">
+            <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" data-testid="button-filter-date">
+                    <Filter className="mr-2 h-4 w-4" /> Filter
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Filter Leave Requests</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">Employee</label>
+                    <Select value={employeeFilterId} onValueChange={setEmployeeFilterId}>
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue placeholder="All employees" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All Employees</SelectItem>
+                        {employees.map(emp => (
+                          <SelectItem key={emp.id} value={emp.id}>
+                            {emp.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Start Date From</label>
+                    <Input 
+                      type="date"
+                      value={startDateFilter}
+                      onChange={(e) => setStartDateFilter(e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">End Date To</label>
+                    <Input 
+                      type="date"
+                      value={endDateFilter}
+                      onChange={(e) => setEndDateFilter(e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        setEmployeeFilterId("");
+                        setStartDateFilter("");
+                        setEndDateFilter("");
+                      }}
+                    >
+                      Clear Filters
+                    </Button>
+                    <Button 
+                      className="flex-1"
+                      onClick={() => setIsFilterDialogOpen(false)}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Button variant="outline" size="sm" onClick={downloadPDF}>
+              <Download className="mr-2 h-4 w-4" /> Download PDF
+            </Button>
+           </div>
+        </div>
+
         <Table>
-          <TableHeader>
+            <TableHeader>
             <TableRow className="bg-muted/30">
-              <TableHead>Employee Name</TableHead>
-              <TableHead>Designation</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead className="text-center">Total Leave Days</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+                <TableHead>Employee Name</TableHead>
+                <TableHead>Leave Type</TableHead>
+                <TableHead className="text-sm">Date Range</TableHead>
+                <TableHead>Days</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Comments</TableHead>
+                <TableHead>Done By</TableHead>
+                <TableHead>Updated By</TableHead>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredEmployees.map((employee) => {
-              const summary = storage.getEmployeeLeaveSummary(employee.id);
-              return (
-                <TableRow key={employee.id}>
-                  <TableCell className="font-medium">{employee.name}</TableCell>
-                  <TableCell>{employee.designation}</TableCell>
-                  <TableCell>{employee.department}</TableCell>
-                  <TableCell className="text-center">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-primary/10 text-primary">
-                      {summary.totalDays}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Eye className="mr-2 h-4 w-4" /> View
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                          <DialogHeader>
-                            <DialogTitle>{employee.name} - Leave Details</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-3 gap-4">
-                              <div className="p-3 bg-muted/30 rounded-lg">
-                                <p className="text-xs text-muted-foreground uppercase">Designation</p>
-                                <p className="font-medium text-foreground">{employee.designation}</p>
-                              </div>
-                              <div className="p-3 bg-muted/30 rounded-lg">
-                                <p className="text-xs text-muted-foreground uppercase">Department</p>
-                                <p className="font-medium text-foreground">{employee.department}</p>
-                              </div>
-                              <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-                                <p className="text-xs text-muted-foreground uppercase">Total Days</p>
-                                <p className="font-bold text-primary text-lg">{summary.totalDays}</p>
-                              </div>
-                            </div>
-
-                            <div>
-                              <h4 className="font-semibold mb-3">Leave Breakdown</h4>
-                              <div className="space-y-3">
-                                {summary.leaveBreakdown.map((item) => (
-                                  <div key={item.leaveType} className="border rounded-lg p-3">
-                                    <div className="flex justify-between items-center mb-2">
-                                      <h5 className="font-medium">{item.leaveType}</h5>
-                                      <span className="text-sm font-bold text-primary">{item.days} days</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                      {item.records.map((record) => (
-                                        <div key={record.id} className="text-sm text-muted-foreground flex justify-between">
-                                          <span>{format(new Date(record.startDate), "MMM d")} - {format(new Date(record.endDate), "MMM d, yyyy")}</span>
-                                          <span className="font-medium text-foreground">{record.approvedDays}d</span>
-                                        </div>
-                                      ))}
-                                    </div>
+            </TableHeader>
+            <TableBody>
+            {filteredRequests.map((request) => (
+                <TableRow key={request.id}>
+                    <TableCell className="font-medium">{request.employeeName}</TableCell>
+                    <TableCell>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">
+                            {request.leaveTypeName}
+                        </span>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                        {format(new Date(request.startDate), "MMM d")} - {format(new Date(request.endDate), "MMM d, yyyy")}
+                    </TableCell>
+                    <TableCell className="font-medium">{request.approvedDays}</TableCell>
+                    <TableCell>
+                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600">
+                            {request.status}
+                        </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm max-w-[200px]">
+                        <div className="flex items-center gap-2">
+                            <span className="truncate" title={request.comments}>{request.comments || "-"}</span>
+                            {request.attachmentBase64 && (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-5 w-5"
+                                  >
+                                    <Eye className="h-3 w-3 text-primary" />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl">
+                                  <DialogHeader>
+                                    <DialogTitle>{request.attachmentFileName}</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <img src={request.attachmentBase64} alt={request.attachmentFileName} className="w-full max-h-96 object-contain rounded-lg" />
+                                    <p className="text-sm text-muted-foreground">Attached by {request.employeeName}</p>
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <Button 
-                              className="w-full mt-4"
-                              onClick={() => {
-                                downloadEmployeeLeavePDF(employee);
-                              }}
-                            >
-                              <Download className="mr-2 h-4 w-4" /> Download as PDF
-                            </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => downloadEmployeeLeavePDF(employee)}
-                      >
-                        <Download className="mr-2 h-4 w-4" /> PDF
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                        </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{storage.getUserName(request.doneBy)}</TableCell>
+                    <TableCell className="text-sm">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</TableCell>
+                    </TableRow>
+                ))
+            )}
+            </TableBody>
         </Table>
       </div>
     </div>

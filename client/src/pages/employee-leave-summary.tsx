@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
-import { storage, User } from "@/lib/storage";
-import { Button } from "@/components/ui/button";
+import { storage, Employee } from "@/lib/storage";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -16,221 +16,317 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Eye, Download, X } from "lucide-react";
+import { format } from "date-fns";
+import jsPDF from "jspdf";
 import { useToast } from "@/hooks/use-toast";
-import { User as UserIcon, Lock, Shield, Mail } from "lucide-react";
-import { useLocation } from "wouter";
 
-export default function Profile() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [password, setPassword] = useState("");
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [, setLocation] = useLocation();
+export default function EmployeeLeaveSummary() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
+  const [nameFilter, setNameFilter] = useState("");
+  const [dateFromFilter, setDateFromFilter] = useState("");
+  const [dateToFilter, setDateToFilter] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
-    const user = storage.getCurrentUser();
-    if (!user) {
-      setLocation("/login");
-      return;
-    }
-    setCurrentUser(user);
+    const allEmployees = storage.getEmployees();
+    setEmployees(allEmployees);
+    setFilteredEmployees(allEmployees);
   }, []);
 
-  const handlePasswordChange = () => {
-    if (!password) {
+  const applyFilters = (
+    emps: Employee[],
+    name: string,
+    dateFrom: string,
+    dateTo: string
+  ) => {
+    let filtered = emps;
+
+    if (name) {
+      filtered = filtered.filter((e) =>
+        e.name.toLowerCase().includes(name.toLowerCase())
+      );
+    }
+
+    if (dateFrom || dateTo) {
+      filtered = filtered.filter((emp) => {
+        const leaves = storage.getLeaveRequests().filter(
+          (r) => r.employeeId === emp.id && r.status === "Approved"
+        );
+        if (leaves.length === 0) return false;
+
+        return leaves.some((leave) => {
+          const leaveDate = new Date(leave.startDate);
+          const fromDate = dateFrom ? new Date(dateFrom) : null;
+          const toDate = dateTo ? new Date(dateTo) : null;
+
+          if (fromDate && leaveDate < fromDate) return false;
+          if (toDate && leaveDate > toDate) return false;
+          return true;
+        });
+      });
+    }
+
+    setFilteredEmployees(filtered);
+  };
+
+  const handleNameFilterChange = (value: string) => {
+    setNameFilter(value);
+    applyFilters(employees, value, dateFromFilter, dateToFilter);
+  };
+
+  const handleDateFromChange = (value: string) => {
+    setDateFromFilter(value);
+    applyFilters(employees, nameFilter, value, dateToFilter);
+  };
+
+  const handleDateToChange = (value: string) => {
+    setDateToFilter(value);
+    applyFilters(employees, nameFilter, dateFromFilter, value);
+  };
+
+  const handleClearFilters = () => {
+    setNameFilter("");
+    setDateFromFilter("");
+    setDateToFilter("");
+    setFilteredEmployees(employees);
+  };
+
+  const downloadEmployeeLeavePDF = (employee: Employee) => {
+    const summary = storage.getEmployeeLeaveSummary(employee.id);
+    
+    if (summary.totalDays === 0) {
       toast({
-        title: "Error",
-        description: "Password cannot be empty.",
-        variant: "destructive",
+        title: "No Data",
+        description: `${employee.name} has no approved leaves.`,
+        variant: "destructive"
       });
       return;
     }
-    toast({
-      title: "Password Updated",
-      description: "Your password has been changed successfully.",
-    });
-    setPassword("");
-    setShowPasswordChange(false);
-  };
 
-  const handleForgotPassword = () => {
-    toast({
-      title: "Password Reset Link Sent",
-      description: "Check your email for password reset instructions.",
-    });
-  };
+    try {
+      const doc = new jsPDF();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPosition = 15;
 
-  if (!currentUser) {
-    return null;
-  }
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("Employee Leave Summary", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 8;
+
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Name: ${employee.name}`, 15, yPosition);
+      yPosition += 5;
+      doc.text(`Designation: ${employee.designation}`, 15, yPosition);
+      yPosition += 5;
+      doc.text(`Department: ${employee.department}`, 15, yPosition);
+      yPosition += 5;
+      doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
+      yPosition += 10;
+
+      doc.setFillColor(220, 220, 220);
+      doc.rect(15, yPosition - 2, pageWidth - 30, 12, "F");
+      doc.setFont("helvetica", "bold");
+      doc.text(`Total Leave Days Taken: ${summary.totalDays}`, pageWidth / 2, yPosition + 3, { align: "center" });
+      yPosition += 15;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("Leave Breakdown by Type:", 15, yPosition);
+      yPosition += 7;
+
+      doc.setFontSize(10);
+      summary.leaveBreakdown.forEach((item) => {
+        doc.setFont("helvetica", "bold");
+        doc.text(`${item.leaveType}: ${item.days} days`, 15, yPosition);
+        yPosition += 6;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        item.records.forEach((record) => {
+          if (yPosition > pageHeight - 20) {
+            doc.addPage();
+            yPosition = 15;
+          }
+
+          const dateRange = `${format(new Date(record.startDate), "MMM d")} - ${format(new Date(record.endDate), "MMM d, yyyy")}`;
+          doc.text(`  • ${dateRange} (${record.approvedDays} days)`, 20, yPosition);
+          yPosition += 4;
+        });
+
+        doc.setFontSize(10);
+        yPosition += 2;
+      });
+
+      yPosition = pageHeight - 10;
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "italic");
+      doc.text(`This is an auto-generated report. For official records, contact HR.`, pageWidth / 2, yPosition, { align: "center" });
+
+      doc.save(`${employee.name}-leave-summary.pdf`);
+      toast({
+        title: "PDF Downloaded",
+        description: `Leave summary for ${employee.name} downloaded successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF.",
+        variant: "destructive"
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold font-heading">Profile & Settings</h1>
-        <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
+        <h1 className="text-3xl font-bold font-heading">Employee Leave Summary</h1>
+        <p className="text-muted-foreground mt-1">View and download leave records for all employees</p>
       </div>
 
-      {/* Profile Card */}
-      <Card className="border-2">
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-              <UserIcon className="w-8 h-8 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl">{currentUser.name}</CardTitle>
-              <CardDescription className="flex items-center gap-2 mt-1">
-                <Shield className="w-4 h-4" />
-                {currentUser.role} User
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Account Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Account Information</CardTitle>
-          <CardDescription>View your account details</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Name</label>
-              <div className="p-3 bg-muted/50 rounded-lg text-foreground font-medium">
-                {currentUser.name}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Role</label>
-              <div className="p-3 bg-muted/50 rounded-lg text-foreground font-medium">
-                {currentUser.role}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Email</label>
-              <div className="p-3 bg-muted/50 rounded-lg text-foreground font-medium flex items-center gap-2">
-                <Mail className="w-4 h-4" />
-                {currentUser.name.toLowerCase()}@company.com
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Member Since</label>
-              <div className="p-3 bg-muted/50 rounded-lg text-foreground font-medium">
-                {new Date(currentUser.createdAt).toLocaleDateString()}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Security Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Security Settings</CardTitle>
-          <CardDescription>Manage your password and security</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <Dialog open={showPasswordChange} onOpenChange={setShowPasswordChange}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="w-full justify-start">
-                  <Lock className="mr-2 h-4 w-4" />
-                  Change Password
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Change Password</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">New Password</label>
-                    <Input
-                      type="password"
-                      placeholder="Enter new password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                  <Button onClick={handlePasswordChange} className="w-full">
-                    Update Password
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={handleForgotPassword}
-            >
-              <Mail className="mr-2 h-4 w-4" />
-              Forgot Password
+      {/* Filters */}
+      <div className="bg-card rounded-xl border shadow-sm p-4 space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold">Filters</h3>
+          {(nameFilter || dateFromFilter || dateToFilter) && (
+            <Button variant="ghost" size="sm" onClick={handleClearFilters}>
+              <X className="h-4 w-4 mr-2" /> Clear Filters
             </Button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Employee Name</label>
+            <Input
+              placeholder="Search by name..."
+              value={nameFilter}
+              onChange={(e) => handleNameFilterChange(e.target.value)}
+            />
           </div>
-          <p className="text-xs text-muted-foreground">
-            Your password should be at least 8 characters long and include a mix of uppercase, lowercase, and numbers.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* App Controls */}
-      {currentUser.role === 'Admin' && (
-        <Card className="border-2 border-primary/30 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="text-lg">Admin Controls</CardTitle>
-            <CardDescription>Manage users and system settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button className="w-full justify-start" variant="default">
-              <UserIcon className="mr-2 h-4 w-4" />
-              Go to User Management
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              Only administrators can add and delete users from the system.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Permissions Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Your Permissions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 text-sm">
-            {currentUser.role === 'Admin' ? (
-              <>
-                <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded text-green-700">
-                  <span>✓</span> Full system access
-                </div>
-                <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded text-green-700">
-                  <span>✓</span> Add and delete users
-                </div>
-                <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded text-green-700">
-                  <span>✓</span> Manage all operations
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded text-blue-700">
-                  <span>✓</span> Full system access to all features
-                </div>
-                <div className="flex items-center gap-2 p-2 bg-gray-500/10 rounded text-gray-700">
-                  <span>✗</span> Cannot add or delete users
-                </div>
-                <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded text-blue-700">
-                  <span>✓</span> Can manage all operational data
-                </div>
-              </>
-            )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Date From</label>
+            <Input
+              type="date"
+              value={dateFromFilter}
+              onChange={(e) => handleDateFromChange(e.target.value)}
+            />
           </div>
-        </CardContent>
-      </Card>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Date To</label>
+            <Input
+              type="date"
+              value={dateToFilter}
+              onChange={(e) => handleDateToChange(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30">
+              <TableHead>Employee Name</TableHead>
+              <TableHead>Designation</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead className="text-center">Total Leave Days</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredEmployees.map((employee) => {
+              const summary = storage.getEmployeeLeaveSummary(employee.id);
+              return (
+                <TableRow key={employee.id}>
+                  <TableCell className="font-medium">{employee.name}</TableCell>
+                  <TableCell>{employee.designation}</TableCell>
+                  <TableCell>{employee.department}</TableCell>
+                  <TableCell className="text-center">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-primary/10 text-primary">
+                      {summary.totalDays}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Eye className="mr-2 h-4 w-4" /> View
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>{employee.name} - Leave Details</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-3 gap-4">
+                              <div className="p-3 bg-muted/30 rounded-lg">
+                                <p className="text-xs text-muted-foreground uppercase">Designation</p>
+                                <p className="font-medium text-foreground">{employee.designation}</p>
+                              </div>
+                              <div className="p-3 bg-muted/30 rounded-lg">
+                                <p className="text-xs text-muted-foreground uppercase">Department</p>
+                                <p className="font-medium text-foreground">{employee.department}</p>
+                              </div>
+                              <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                                <p className="text-xs text-muted-foreground uppercase">Total Days</p>
+                                <p className="font-bold text-primary text-lg">{summary.totalDays}</p>
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="font-semibold mb-3">Leave Breakdown</h4>
+                              <div className="space-y-3">
+                                {summary.leaveBreakdown.map((item) => (
+                                  <div key={item.leaveType} className="border rounded-lg p-3">
+                                    <div className="flex justify-between items-center mb-2">
+                                      <h5 className="font-medium">{item.leaveType}</h5>
+                                      <span className="text-sm font-bold text-primary">{item.days} days</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                      {item.records.map((record) => (
+                                        <div key={record.id} className="text-sm text-muted-foreground flex justify-between">
+                                          <span>{format(new Date(record.startDate), "MMM d")} - {format(new Date(record.endDate), "MMM d, yyyy")}</span>
+                                          <span className="font-medium text-foreground">{record.approvedDays}d</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <Button 
+                              className="w-full mt-4"
+                              onClick={() => {
+                                downloadEmployeeLeavePDF(employee);
+                              }}
+                            >
+                              <Download className="mr-2 h-4 w-4" /> Download as PDF
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => downloadEmployeeLeavePDF(employee)}
+                      >
+                        <Download className="mr-2 h-4 w-4" /> PDF
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
