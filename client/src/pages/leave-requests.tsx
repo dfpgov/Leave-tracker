@@ -591,8 +591,7 @@ export default function LeaveRequests() {
                     <TableCell className="text-sm">{storage.getUserName(request.doneBy)}</TableCell>
                     <TableCell className="text-sm">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</TableCell>
                     </TableRow>
-                ))
-            )}
+                ))}
             </TableBody>
         </Table>
       </div>
