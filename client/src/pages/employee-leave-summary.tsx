@@ -57,13 +57,15 @@ export default function EmployeeLeaveSummary() {
         );
         if (leaves.length === 0) return false;
 
-        return leaves.some((leave) => {
-          const leaveDate = new Date(leave.startDate);
-          const fromDate = dateFrom ? new Date(dateFrom) : null;
-          const toDate = dateTo ? new Date(dateTo) : null;
+        const fromDate = dateFrom ? new Date(dateFrom) : null;
+        const toDate = dateToFilter ? new Date(dateToFilter) : null;
 
-          if (fromDate && leaveDate < fromDate) return false;
-          if (toDate && leaveDate > toDate) return false;
+        return leaves.some((leave) => {
+          const leaveStart = new Date(leave.startDate);
+          const leaveEnd = new Date(leave.endDate);
+          
+          if (fromDate && leaveEnd < fromDate) return false;
+          if (toDate && leaveStart > toDate) return false;
           return true;
         });
       });
@@ -276,7 +278,23 @@ export default function EmployeeLeaveSummary() {
           </TableHeader>
           <TableBody>
             {filteredEmployees.map((employee) => {
-              const summary = storage.getEmployeeLeaveSummary(employee.id);
+              let filteredLeaves = storage.getLeaveRequests().filter(r => r.employeeId === employee.id && r.status === "Approved");
+              
+              if (dateFromFilter || dateToFilter) {
+                filteredLeaves = filteredLeaves.filter(leave => {
+                  const fromDate = dateFromFilter ? new Date(dateFromFilter) : null;
+                  const toDate = dateToFilter ? new Date(dateToFilter) : null;
+                  const leaveStart = new Date(leave.startDate);
+                  const leaveEnd = new Date(leave.endDate);
+                  
+                  if (fromDate && leaveEnd < fromDate) return false;
+                  if (toDate && leaveStart > toDate) return false;
+                  return true;
+                });
+              }
+              
+              const filteredTotalDays = filteredLeaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
+              
               return (
                 <TableRow key={employee.id}>
                   <TableCell className="font-medium">{employee.name}</TableCell>
@@ -284,7 +302,7 @@ export default function EmployeeLeaveSummary() {
                   <TableCell>{employee.department}</TableCell>
                   <TableCell className="text-center">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-primary/10 text-primary">
-                      {summary.totalDays}
+                      {filteredTotalDays}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
@@ -311,29 +329,43 @@ export default function EmployeeLeaveSummary() {
                               </div>
                               <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
                                 <p className="text-xs text-muted-foreground uppercase">Total Days</p>
-                                <p className="font-bold text-primary text-lg">{summary.totalDays}</p>
+                                <p className="font-bold text-primary text-lg">{filteredTotalDays}</p>
                               </div>
                             </div>
 
                             <div>
-                              <h4 className="font-semibold mb-3">Leave Breakdown</h4>
+                              <h4 className="font-semibold mb-3">Leave Breakdown {dateFromFilter || dateToFilter ? `(Filtered)` : ""}</h4>
                               <div className="space-y-3">
-                                {summary.leaveBreakdown.map((item) => (
-                                  <div key={item.leaveType} className="border rounded-lg p-3">
-                                    <div className="flex justify-between items-center mb-2">
-                                      <h5 className="font-medium">{item.leaveType}</h5>
-                                      <span className="text-sm font-bold text-primary">{item.days} days</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                      {item.records.map((record) => (
-                                        <div key={record.id} className="text-sm text-muted-foreground flex justify-between">
-                                          <span>{format(new Date(record.startDate), "MMM d")} - {format(new Date(record.endDate), "MMM d, yyyy")}</span>
-                                          <span className="font-medium text-foreground">{record.approvedDays}d</span>
+                                {filteredLeaves.length > 0 ? (
+                                  (() => {
+                                    const leaveTypeMap = new Map<string, typeof filteredLeaves>();
+                                    filteredLeaves.forEach(leave => {
+                                      if (!leaveTypeMap.has(leave.leaveTypeName)) {
+                                        leaveTypeMap.set(leave.leaveTypeName, []);
+                                      }
+                                      leaveTypeMap.get(leave.leaveTypeName)!.push(leave);
+                                    });
+                                    
+                                    return Array.from(leaveTypeMap).map(([leaveType, leaves]) => (
+                                      <div key={leaveType} className="border rounded-lg p-3">
+                                        <div className="flex justify-between items-center mb-2">
+                                          <h5 className="font-medium">{leaveType}</h5>
+                                          <span className="text-sm font-bold text-primary">{leaves.reduce((acc, l) => acc + l.approvedDays, 0)} days</span>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
+                                        <div className="space-y-1">
+                                          {leaves.map((leave) => (
+                                            <div key={leave.id} className="text-sm text-muted-foreground flex justify-between">
+                                              <span>{format(new Date(leave.startDate), "MMM d")} - {format(new Date(leave.endDate), "MMM d, yyyy")}</span>
+                                              <span className="font-medium text-foreground">{leave.approvedDays}d</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ));
+                                  })()
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">No leaves found in the selected date range.</p>
+                                )}
                               </div>
                             </div>
 
