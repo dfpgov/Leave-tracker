@@ -1,6 +1,15 @@
 import { format } from "date-fns";
 
 // Types
+export type UserRole = 'Admin' | 'CoAdmin';
+
+export interface User {
+  id: string;
+  name: string;
+  role: UserRole;
+  createdAt: string;
+}
+
 export interface Employee {
   id: string;
   name: string;
@@ -8,6 +17,7 @@ export interface Employee {
   department: string;
   gender: 'Male' | 'Female' | 'Other';
   lastEdited: string;
+  doneBy: string; // User ID
 }
 
 export interface Holiday {
@@ -16,18 +26,20 @@ export interface Holiday {
   startDate: string;
   endDate: string;
   totalDays: number;
+  doneBy: string; // User ID
 }
 
 export interface LeaveType {
   id: string;
   name: string;
-  maxDays: number | null; // null means no limit
+  maxDays: number | null;
+  doneBy: string; // User ID
 }
 
 export interface LeaveRequest {
   id: string;
-  employeeId: string; // Linking to Employee ID
-  employeeName: string; // Storing snapshot for simplicity as per req (name + des + dept)
+  employeeId: string;
+  employeeName: string;
   designation: string;
   department: string;
   leaveTypeId: string;
@@ -38,23 +50,30 @@ export interface LeaveRequest {
   comments: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   timestamp: string;
-  attachmentFileName?: string; // Name of the attached file
+  attachmentFileName?: string;
+  attachmentBase64?: string;
+  doneBy: string; // User ID
 }
 
 // Initial Data Seeds
 const INITIAL_LEAVE_TYPES: LeaveType[] = [
-  { id: 'LT001', name: 'Casual Leave', maxDays: 20 },
-  { id: 'LT002', name: 'Sick Leave', maxDays: 10 },
-  { id: 'LT003', name: 'Earned Leave', maxDays: null },
+  { id: 'LT001', name: 'Casual Leave', maxDays: 20, doneBy: 'ADMIN001' },
+  { id: 'LT002', name: 'Sick Leave', maxDays: 10, doneBy: 'ADMIN001' },
+  { id: 'LT003', name: 'Earned Leave', maxDays: null, doneBy: 'ADMIN001' },
 ];
 
 const INITIAL_EMPLOYEES: Employee[] = [
-  { id: 'EMP001', name: 'John Doe', designation: 'Software Engineer', department: 'IT', gender: 'Male', lastEdited: new Date().toISOString() },
-  { id: 'EMP002', name: 'Jane Smith', designation: 'HR Manager', department: 'HR', gender: 'Female', lastEdited: new Date().toISOString() },
+  { id: 'EMP001', name: 'John Doe', designation: 'Software Engineer', department: 'IT', gender: 'Male', lastEdited: new Date().toISOString(), doneBy: 'ADMIN001' },
+  { id: 'EMP002', name: 'Jane Smith', designation: 'HR Manager', department: 'HR', gender: 'Female', lastEdited: new Date().toISOString(), doneBy: 'ADMIN001' },
 ];
 
 const INITIAL_HOLIDAYS: Holiday[] = [
-  { id: 'H001', name: 'New Year', startDate: '2025-01-01', endDate: '2025-01-01', totalDays: 1 },
+  { id: 'H001', name: 'New Year', startDate: '2025-01-01', endDate: '2025-01-01', totalDays: 1, doneBy: 'ADMIN001' },
+];
+
+const INITIAL_USERS: User[] = [
+  { id: 'ADMIN001', name: 'Admin', role: 'Admin', createdAt: new Date().toISOString() },
+  { id: 'COADMIN001', name: 'Co-Admin', role: 'CoAdmin', createdAt: new Date().toISOString() },
 ];
 
 // Storage Keys
@@ -64,28 +83,64 @@ const KEYS = {
   LEAVE_TYPES: 'lms_leave_types',
   LEAVE_REQUESTS: 'lms_leave_requests',
   AUTH: 'lms_auth',
+  USERS: 'lms_users',
+  CURRENT_USER: 'lms_current_user',
 };
 
-// Helper to calculate days between dates (inclusive)
 export const calculateDays = (start: string, end: string): number => {
   const s = new Date(start);
   const e = new Date(end);
   const diffTime = Math.abs(e.getTime() - s.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-  return diffDays + 1; // Inclusive
+  return diffDays + 1;
 };
 
-// Storage Service
 export const storage = {
   // Auth
-  login: () => {
+  login: (userId: string) => {
     localStorage.setItem(KEYS.AUTH, 'true');
+    localStorage.setItem(KEYS.CURRENT_USER, userId);
   },
   logout: () => {
     localStorage.removeItem(KEYS.AUTH);
+    localStorage.removeItem(KEYS.CURRENT_USER);
   },
   isAuthenticated: () => {
     return localStorage.getItem(KEYS.AUTH) === 'true';
+  },
+  getCurrentUser: (): User | null => {
+    const userId = localStorage.getItem(KEYS.CURRENT_USER);
+    if (!userId) return null;
+    const users = storage.getUsers();
+    return users.find(u => u.id === userId) || null;
+  },
+  getCurrentUserId: (): string => {
+    return localStorage.getItem(KEYS.CURRENT_USER) || '';
+  },
+
+  // Users
+  getUsers: (): User[] => {
+    const data = localStorage.getItem(KEYS.USERS);
+    return data ? JSON.parse(data) : INITIAL_USERS;
+  },
+  saveUser: (user: User) => {
+    const users = storage.getUsers();
+    const index = users.findIndex(u => u.id === user.id);
+    if (index >= 0) {
+      users[index] = user;
+    } else {
+      users.push(user);
+    }
+    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+  },
+  deleteUser: (id: string) => {
+    const users = storage.getUsers().filter(u => u.id !== id);
+    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+  },
+  generateUserId: (): string => {
+    const users = storage.getUsers();
+    const count = users.filter(u => u.role === 'CoAdmin').length + 1;
+    return `COADMIN${String(count).padStart(3, '0')}`;
   },
 
   // Employees
@@ -172,13 +227,18 @@ export const storage = {
     const requests = storage.getLeaveRequests().filter(r => r.id !== id);
     localStorage.setItem(KEYS.LEAVE_REQUESTS, JSON.stringify(requests));
   },
+
+  // User name helper
+  getUserName: (userId: string): string => {
+    const user = storage.getUsers().find(u => u.id === userId);
+    return user ? user.name : 'Unknown';
+  },
   
   // Analytics Helpers
   getStats: () => {
     const employees = storage.getEmployees();
     const requests = storage.getLeaveRequests();
     
-    // Employees currently on leave (today is between start and end)
     const today = new Date();
     today.setHours(0,0,0,0);
     
@@ -198,7 +258,6 @@ export const storage = {
     };
   },
 
-  // Employee Leave Summary
   getEmployeeLeaveSummary: (employeeId: string) => {
     const requests = storage.getLeaveRequests().filter(r => r.employeeId === employeeId && r.status === 'Approved');
     const totalDays = requests.reduce((acc, curr) => acc + curr.approvedDays, 0);

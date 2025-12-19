@@ -8,7 +8,8 @@ import {
   FileText, 
   BarChart3, 
   LogOut,
-  UserCheck
+  UserCheck,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { storage } from "@/lib/storage";

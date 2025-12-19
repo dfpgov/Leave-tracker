@@ -12,6 +12,7 @@ import LeaveTypes from "@/pages/leave-types";
 import LeaveRequests from "@/pages/leave-requests";
 import Analytics from "@/pages/analytics";
 import EmployeeLeaveSummary from "@/pages/employee-leave-summary";
+import UserManagement from "@/pages/user-management";
 import Layout from "@/components/layout";
 import { storage } from "@/lib/storage";
 
@@ -54,6 +55,9 @@ function Router() {
       </Route>
       <Route path="/employee-leave-summary">
         <ProtectedRoute component={EmployeeLeaveSummary} />
+      </Route>
+      <Route path="/users">
+        <ProtectedRoute component={UserManagement} />
       </Route>
 
       <Route component={NotFound} />

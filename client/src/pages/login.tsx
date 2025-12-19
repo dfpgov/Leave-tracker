@@ -1,8 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,45 +9,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { storage } from "@/lib/storage";
+import { storage, User } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Lock, User } from "lucide-react";
-
-const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
-});
+import { Lock, User as UserIcon } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const [users, setUsers] = useState<User[]>([]);
   const { toast } = useToast();
-  
-  const form = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      username: "",
-      password: "",
-    },
-  });
 
-  const onSubmit = (values: z.infer<typeof loginSchema>) => {
-    if (values.username === "Akash" && values.password === "123456") {
-      storage.login();
-      toast({
-        title: "Login Successful",
-        description: "Welcome back, Akash!",
-      });
-      setLocation("/");
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Login Failed",
-        description: "Invalid credentials. Try Akash / 123456",
-      });
-    }
+  useEffect(() => {
+    setUsers(storage.getUsers());
+  }, []);
+
+  const handleLogin = (userId: string) => {
+    storage.login(userId);
+    const user = users.find(u => u.id === userId);
+    toast({
+      title: "Login Successful",
+      description: `Welcome, ${user?.name}! (${user?.role})`,
+    });
+    setLocation("/");
   };
 
   return (
@@ -64,52 +43,31 @@ export default function Login() {
           </div>
           <CardTitle className="text-2xl font-heading font-bold">Welcome Back</CardTitle>
           <CardDescription>
-            Enter your credentials to access the leave portal
+            Select your account to access the leave portal
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="Akash" className="pl-9" {...field} />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input type="password" placeholder="••••••" className="pl-9" {...field} />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full h-11 text-base font-medium transition-all hover:scale-[1.02]">
-                Sign In
-              </Button>
-            </form>
-          </Form>
+        <CardContent className="space-y-3">
+          {users.map((user) => (
+            <Button
+              key={user.id}
+              onClick={() => handleLogin(user.id)}
+              variant="outline"
+              className="w-full h-16 justify-start px-4 hover:bg-primary/5 hover:border-primary/50 transition-all"
+            >
+              <div className="flex items-center gap-3 w-full">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <UserIcon className="w-5 h-5 text-primary" />
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-foreground">{user.name}</p>
+                  <p className="text-xs text-muted-foreground">{user.role}</p>
+                </div>
+              </div>
+            </Button>
+          ))}
         </CardContent>
         <CardFooter className="flex justify-center text-sm text-muted-foreground bg-muted/30 py-4 rounded-b-lg">
-          <p>Default: Akash / 123456</p>
+          <p>Select your role to continue</p>
         </CardFooter>
       </Card>
     </div>

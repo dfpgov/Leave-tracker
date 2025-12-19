@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { storage, LeaveRequest, Employee, LeaveType, calculateDays } from "@/lib/storage";
+import { storage, LeaveRequest, Employee, LeaveType, calculateDays, User } from "@/lib/storage";
 import {
   Table,
   TableBody,
@@ -63,7 +63,8 @@ export default function LeaveRequests() {
   const [endDateFilter, setEndDateFilter] = useState("");
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
-  const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; requestId: string } | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ base64: string; name: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -73,6 +74,7 @@ export default function LeaveRequests() {
 
   useEffect(() => {
     refreshData();
+    setCurrentUser(storage.getCurrentUser());
   }, []);
 
   // Close dropdown when clicking outside
@@ -115,7 +117,53 @@ export default function LeaveRequests() {
        }
     }
 
-    const attachmentName = form.getValues('attachment')?.[0]?.name || undefined;
+    const attachmentFile = form.getValues('attachment')?.[0];
+    const isImage = attachmentFile && /^image\/(png|jpg|jpeg|gif|webp)$/.test(attachmentFile.type);
+    
+    if (attachmentFile && !isImage) {
+      toast({
+        title: "Invalid File",
+        description: "Only image files (PNG, JPG, GIF, WebP) are allowed.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    let attachmentBase64: string | undefined;
+    if (attachmentFile && isImage) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        const newReq: LeaveRequest = {
+          id: Math.random().toString(36).substr(2, 9),
+          employeeId: employee.id,
+          employeeName: employee.name,
+          designation: employee.designation,
+          department: employee.department,
+          leaveTypeId: leaveType.id,
+          leaveTypeName: leaveType.name,
+          startDate: values.startDate,
+          endDate: values.endDate,
+          approvedDays: approvedDaysNum,
+          comments: values.comments || "",
+          status: "Approved", 
+          timestamp: new Date().toISOString(),
+          attachmentFileName: attachmentFile.name,
+          attachmentBase64: base64,
+          doneBy: storage.getCurrentUserId(),
+        };
+        storage.saveLeaveRequest(newReq);
+        refreshData();
+        setIsDialogOpen(false);
+        form.reset();
+        toast({
+          title: "Leave Request Logged",
+          description: "Request added successfully.",
+        });
+      };
+      reader.readAsDataURL(attachmentFile);
+      return;
+    }
 
     const newRequest: LeaveRequest = {
       id: Math.random().toString(36).substr(2, 9),
@@ -131,7 +179,8 @@ export default function LeaveRequests() {
       comments: values.comments || "",
       status: "Approved", 
       timestamp: new Date().toISOString(),
-      attachmentFileName: attachmentName,
+      attachmentFileName: attachmentFile?.name,
+      doneBy: storage.getCurrentUserId(),
     };
 
     storage.saveLeaveRequest(newRequest);
@@ -384,12 +433,13 @@ export default function LeaveRequests() {
                     name="attachment"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Attachment (Optional)</FormLabel>
+                            <FormLabel>Attachment - Images Only (Optional)</FormLabel>
                             <FormControl>
                                 <div className="flex items-center gap-2">
-                                    <Input type="file" className="cursor-pointer file:text-foreground" {...field} value={undefined} onChange={(e) => field.onChange(e.target.files)} />
+                                    <Input type="file" accept="image/*" className="cursor-pointer file:text-foreground" {...field} value={undefined} onChange={(e) => field.onChange(e.target.files)} />
                                 </div>
                             </FormControl>
+                            <p className="text-xs text-muted-foreground">Supported: PNG, JPG, GIF, WebP</p>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -639,37 +689,32 @@ export default function LeaveRequests() {
                     <TableCell className="text-muted-foreground text-sm max-w-[200px]">
                         <div className="flex items-center gap-2">
                             <span className="truncate" title={request.comments}>{request.comments || "-"}</span>
-                            {request.attachmentFileName && (
+                            {request.attachmentBase64 && (
                               <Dialog>
                                 <DialogTrigger asChild>
                                   <Button 
                                     variant="ghost" 
                                     size="icon" 
                                     className="h-5 w-5"
-                                    onClick={() => setSelectedAttachment({ name: request.attachmentFileName!, requestId: request.id })}
+                                    onClick={() => setSelectedImage({ base64: request.attachmentBase64!, name: request.attachmentFileName! })}
                                   >
                                     <Eye className="h-3 w-3 text-primary" />
                                   </Button>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-lg">
+                                <DialogContent className="max-w-2xl">
                                   <DialogHeader>
-                                    <DialogTitle>Attachment Details</DialogTitle>
+                                    <DialogTitle>{request.attachmentFileName}</DialogTitle>
                                   </DialogHeader>
                                   <div className="space-y-4">
-                                    <div className="p-4 bg-muted/30 rounded-lg flex items-center gap-3">
-                                      <FileText className="h-6 w-6 text-primary" />
-                                      <div className="flex-1">
-                                        <p className="font-medium text-foreground">{request.attachmentFileName}</p>
-                                        <p className="text-xs text-muted-foreground">Attached by {request.employeeName}</p>
-                                      </div>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">Note: File attachment is stored as metadata. Download functionality can be added with backend integration.</p>
+                                    <img src={request.attachmentBase64} alt={request.attachmentFileName} className="w-full max-h-96 object-contain rounded-lg" />
+                                    <p className="text-sm text-muted-foreground">Attached by {request.employeeName}</p>
                                   </div>
                                 </DialogContent>
                               </Dialog>
                             )}
                         </div>
                     </TableCell>
+                    <TableCell className="text-sm">{storage.getUserName(request.doneBy)}</TableCell>
                     </TableRow>
                 ))
             )}
