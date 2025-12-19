@@ -95,17 +95,34 @@ export default function EmployeeLeaveSummary() {
   };
 
   const downloadEmployeeLeavePDF = (employee: Employee) => {
-    const summary = storage.getEmployeeLeaveSummary(employee.id);
+    const allLeaveRequests = storage.getLeaveRequests();
     
-    if (summary.totalDays === 0) {
+    let filteredLeaves = allLeaveRequests.filter(r => r.employeeId === employee.id && r.status === "Approved");
+    
+    if (dateFromFilter || dateToFilter) {
+      filteredLeaves = filteredLeaves.filter(leave => {
+        const fromDate = dateFromFilter ? new Date(dateFromFilter) : null;
+        const toDate = dateToFilter ? new Date(dateToFilter) : null;
+        const leaveStart = new Date(leave.startDate);
+        const leaveEnd = new Date(leave.endDate);
+        
+        if (fromDate && leaveEnd < fromDate) return false;
+        if (toDate && leaveStart > toDate) return false;
+        return true;
+      });
+    }
+    
+    if (filteredLeaves.length === 0) {
       toast({
         title: "No Data",
-        description: `${employee.name} has no approved leaves.`,
+        description: `${employee.name} has no approved leaves in the selected date range.`,
         variant: "destructive"
       });
       return;
     }
 
+    const totalDays = filteredLeaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
+    
     try {
       const doc = new jsPDF();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -126,12 +143,22 @@ export default function EmployeeLeaveSummary() {
       doc.text(`Department: ${employee.department}`, 15, yPosition);
       yPosition += 5;
       doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
-      yPosition += 10;
+      yPosition += 5;
+      
+      if (dateFromFilter || dateToFilter) {
+        const fromText = dateFromFilter ? format(new Date(dateFromFilter), "MMM d, yyyy") : "Any";
+        const toText = dateToFilter ? format(new Date(dateToFilter), "MMM d, yyyy") : "Any";
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(10);
+        doc.text(`Report Period: ${fromText} to ${toText}`, 15, yPosition);
+        yPosition += 5;
+      }
+      yPosition += 5;
 
       doc.setFillColor(220, 220, 220);
       doc.rect(15, yPosition - 2, pageWidth - 30, 12, "F");
       doc.setFont("helvetica", "bold");
-      doc.text(`Total Leave Days Taken: ${summary.totalDays}`, pageWidth / 2, yPosition + 3, { align: "center" });
+      doc.text(`Total Leave Days (Filtered): ${totalDays}`, pageWidth / 2, yPosition + 3, { align: "center" });
       yPosition += 15;
 
       doc.setFont("helvetica", "bold");
@@ -140,21 +167,30 @@ export default function EmployeeLeaveSummary() {
       yPosition += 7;
 
       doc.setFontSize(10);
-      summary.leaveBreakdown.forEach((item) => {
+      const leaveTypeMap = new Map<string, typeof filteredLeaves>();
+      filteredLeaves.forEach(leave => {
+        if (!leaveTypeMap.has(leave.leaveTypeName)) {
+          leaveTypeMap.set(leave.leaveTypeName, []);
+        }
+        leaveTypeMap.get(leave.leaveTypeName)!.push(leave);
+      });
+
+      leaveTypeMap.forEach((leaves, leaveType) => {
+        const typeDays = leaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
         doc.setFont("helvetica", "bold");
-        doc.text(`${item.leaveType}: ${item.days} days`, 15, yPosition);
+        doc.text(`${leaveType}: ${typeDays} days`, 15, yPosition);
         yPosition += 6;
 
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
-        item.records.forEach((record) => {
+        leaves.forEach((leave) => {
           if (yPosition > pageHeight - 20) {
             doc.addPage();
             yPosition = 15;
           }
 
-          const dateRange = `${format(new Date(record.startDate), "MMM d")} - ${format(new Date(record.endDate), "MMM d, yyyy")}`;
-          doc.text(`  • ${dateRange} (${record.approvedDays} days)`, 20, yPosition);
+          const dateRange = `${format(new Date(leave.startDate), "MMM d")} - ${format(new Date(leave.endDate), "MMM d, yyyy")}`;
+          doc.text(`  • ${dateRange} (${leave.approvedDays} days)`, 20, yPosition);
           yPosition += 4;
         });
 

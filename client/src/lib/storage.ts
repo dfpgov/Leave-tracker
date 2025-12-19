@@ -6,6 +6,8 @@ export type UserRole = 'Admin' | 'CoAdmin';
 export interface User {
   id: string;
   name: string;
+  email: string;
+  password: string;
   role: UserRole;
   createdAt: string;
 }
@@ -74,8 +76,8 @@ const INITIAL_HOLIDAYS: Holiday[] = [
 ];
 
 const INITIAL_USERS: User[] = [
-  { id: 'ADMIN001', name: 'Admin', role: 'Admin', createdAt: new Date().toISOString() },
-  { id: 'COADMIN001', name: 'Co-Admin', role: 'CoAdmin', createdAt: new Date().toISOString() },
+  { id: 'ADMIN001', name: 'Admin', email: 'admin@lms.com', password: 'admin123', role: 'Admin', createdAt: new Date().toISOString() },
+  { id: 'COADMIN001', name: 'Co-Admin', email: 'coadmin@lms.com', password: 'coadmin123', role: 'CoAdmin', createdAt: new Date().toISOString() },
 ];
 
 // Storage Keys
@@ -138,6 +140,44 @@ export const storage = {
   deleteUser: (id: string) => {
     const users = storage.getUsers().filter(u => u.id !== id);
     localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+    
+    const adminUser = users.find(u => u.role === 'Admin');
+    const adminId = adminUser?.id || 'ADMIN001';
+    
+    const employees = storage.getEmployees();
+    employees.forEach(emp => {
+      if (emp.doneBy === id) {
+        emp.doneBy = adminId;
+      }
+    });
+    localStorage.setItem(KEYS.EMPLOYEES, JSON.stringify(employees));
+    
+    const leaveRequests = storage.getLeaveRequests();
+    leaveRequests.forEach(req => {
+      if (req.doneBy === id) {
+        req.doneBy = adminId;
+      }
+      if (req.updatedBy === id) {
+        req.updatedBy = adminId;
+      }
+    });
+    localStorage.setItem(KEYS.LEAVE_REQUESTS, JSON.stringify(leaveRequests));
+    
+    const leaveTypes = storage.getLeaveTypes();
+    leaveTypes.forEach(lt => {
+      if (lt.doneBy === id) {
+        lt.doneBy = adminId;
+      }
+    });
+    localStorage.setItem(KEYS.LEAVE_TYPES, JSON.stringify(leaveTypes));
+    
+    const holidays = storage.getHolidays();
+    holidays.forEach(h => {
+      if (h.doneBy === id) {
+        h.doneBy = adminId;
+      }
+    });
+    localStorage.setItem(KEYS.HOLIDAYS, JSON.stringify(holidays));
   },
   generateUserId: (): string => {
     const users = storage.getUsers();

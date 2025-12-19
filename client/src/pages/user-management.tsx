@@ -40,7 +40,9 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 const userSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Username is required"),
+  email: z.string().email("Valid email is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["Admin", "CoAdmin"]),
 });
 
@@ -54,6 +56,8 @@ export default function UserManagement() {
     resolver: zodResolver(userSchema),
     defaultValues: {
       name: "",
+      email: "",
+      password: "",
       role: "CoAdmin",
     },
   });
@@ -87,9 +91,16 @@ export default function UserManagement() {
     setUsers(storage.getUsers());
     setIsDialogOpen(false);
     form.reset();
+    
     toast({
       title: "User Created",
-      description: `${values.name} has been added as ${values.role}.`,
+      description: `${values.name} (${values.email}) has been added as ${values.role}.`,
+    });
+    
+    toast({
+      title: "Email Credentials",
+      description: `Username: ${values.name} | Password: ${values.password}\n(In a real system, this would be sent via email to ${values.email})`,
+      variant: "default",
     });
   };
 
@@ -139,9 +150,35 @@ export default function UserManagement() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>Username</FormLabel>
                       <FormControl>
-                        <Input placeholder="John Doe" {...field} />
+                        <Input placeholder="john.doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email Address</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="john@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Minimum 6 characters" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
