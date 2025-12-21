@@ -42,7 +42,7 @@ import { format } from "date-fns";
 const employeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
   designation: z.string().min(1, "Designation is required"),
-  department: z.string().min(1, "Department is required"),
+  department: z.string().min(1, "Section is required"),
   gender: z.enum(["Male", "Female", "Other"]),
 });
 
@@ -77,6 +77,7 @@ export default function Employees() {
       id: editingEmployee ? editingEmployee.id : storage.generateEmployeeId(),
       ...values,
       lastEdited: new Date().toISOString(),
+      doneBy: storage.getCurrentUserId(),
     };
 
     storage.saveEmployee(newEmployee);
@@ -175,7 +176,7 @@ export default function Employees() {
                     name="department"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Department</FormLabel>
+                        <FormLabel>Section</FormLabel>
                         <FormControl>
                             <Input placeholder="IT" {...field} />
                         </FormControl>
@@ -233,7 +234,7 @@ export default function Employees() {
                 <TableHead>Employee ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Designation</TableHead>
-                <TableHead>Department</TableHead>
+                <TableHead>Section</TableHead>
                 <TableHead>Gender</TableHead>
                 <TableHead>Last Edited</TableHead>
                 <TableHead className="text-right">Actions</TableHead>

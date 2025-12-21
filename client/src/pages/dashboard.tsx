@@ -38,6 +38,36 @@ export default function Dashboard() {
       .reduce((acc, curr) => acc + curr.approvedDays, 0);
   }
 
+  // Get employees currently on leave
+  const getEmployeesOnLeave = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const onLeave = new Set<string>();
+    requests.forEach(request => {
+      if (request.status === 'Approved') {
+        const startDate = new Date(request.startDate);
+        const endDate = new Date(request.endDate);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+        
+        if (today >= startDate && today <= endDate) {
+          onLeave.add(request.employeeId);
+        }
+      }
+    });
+    
+    return Array.from(onLeave)
+      .map(empId => {
+        const emp = employees.find(e => e.id === empId);
+        const leaveRequest = requests.find(r => r.employeeId === empId && r.status === 'Approved' && new Date(r.startDate) <= today && new Date(r.endDate) >= today);
+        return { employee: emp, leaveRequest };
+      })
+      .filter(item => item.employee);
+  };
+
+  const peopleOnLeave = getEmployeesOnLeave();
+
   return (
     <div className="space-y-6">
         <div>
@@ -68,41 +98,42 @@ export default function Dashboard() {
 
         <div className="bg-card rounded-xl border shadow-sm">
             <div className="p-6 border-b">
-                <h3 className="text-lg font-semibold">Employee Leave Summary</h3>
+                <h3 className="text-lg font-semibold">People on Leave Today</h3>
             </div>
             <Table>
                 <TableHeader>
                     <TableRow className="bg-muted/30">
                         <TableHead>Employee Name</TableHead>
                         <TableHead>Designation</TableHead>
-                        <TableHead className="text-center border-l">Casual Leave (20 Max)</TableHead>
-                        <TableHead className="text-center border-l">Total Leaves Taken</TableHead>
+                        <TableHead>Section</TableHead>
+                        <TableHead>Leave Type</TableHead>
+                        <TableHead className="text-center">Leave Period</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {employees.map(emp => {
-                        const cl = getCasualLeaveSummary(emp.id);
-                        const total = getTotalLeaves(emp.id);
-                        return (
-                            <TableRow key={emp.id}>
-                                <TableCell className="font-medium">{emp.name}</TableCell>
-                                <TableCell className="text-muted-foreground text-sm">{emp.designation}</TableCell>
-                                <TableCell className="p-0 border-l">
-                                    <div className="flex h-full w-full">
-                                        <div className="flex-1 p-2 text-center border-r bg-red-50/50 text-red-700">
-                                            <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Used</div>
-                                            <div className="font-bold">{cl.used}</div>
-                                        </div>
-                                        <div className="flex-1 p-2 text-center bg-green-50/50 text-green-700">
-                                            <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Remaining</div>
-                                            <div className="font-bold">{cl.remaining}</div>
-                                        </div>
-                                    </div>
+                    {peopleOnLeave.length === 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                No one is on leave today
+                            </TableCell>
+                        </TableRow>
+                    ) : (
+                        peopleOnLeave.map(({ employee, leaveRequest }) => (
+                            <TableRow key={employee?.id}>
+                                <TableCell className="font-medium">{employee?.name}</TableCell>
+                                <TableCell className="text-muted-foreground text-sm">{employee?.designation}</TableCell>
+                                <TableCell className="text-muted-foreground text-sm">{employee?.department}</TableCell>
+                                <TableCell>
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                        {leaveRequest?.leaveTypeName}
+                                    </span>
                                 </TableCell>
-                                <TableCell className="text-center font-bold border-l">{total}</TableCell>
+                                <TableCell className="text-center text-sm">
+                                    {format(new Date(leaveRequest?.startDate), "MMM d")} - {format(new Date(leaveRequest?.endDate), "MMM d, yyyy")}
+                                </TableCell>
                             </TableRow>
-                        );
-                    })}
+                        ))
+                    )}
                 </TableBody>
             </Table>
         </div>
