@@ -943,6 +943,93 @@ export default function LeaveRequests() {
                     <TableCell className="text-sm">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              className="text-primary hover:text-primary/80 hover:bg-primary/10"
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                              <DialogTitle>Leave Request Details</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Employee Name</p>
+                                  <p className="font-medium text-foreground">{request.employeeName}</p>
+                                </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Leave Type</p>
+                                  <p className="font-medium text-foreground">{request.leaveTypeName}</p>
+                                </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Start Date</p>
+                                  <p className="font-medium text-foreground">{format(new Date(request.startDate), "PPP")}</p>
+                                </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">End Date</p>
+                                  <p className="font-medium text-foreground">{format(new Date(request.endDate), "PPP")}</p>
+                                </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Days</p>
+                                  <p className="font-medium text-foreground">{request.approvedDays} day(s)</p>
+                                </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Status</p>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                    request.status === 'Approved' ? 'bg-green-100 text-green-700' :
+                                    request.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                                    'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {request.status}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Submitted By</p>
+                                  <p className="font-medium text-foreground">{storage.getUserName(request.doneBy)}</p>
+                                </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Submitted At</p>
+                                  <p className="font-medium text-foreground">{request.timestamp ? format(new Date(request.timestamp), "PPP p") : "-"}</p>
+                                </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Approved/Rejected By</p>
+                                  <p className="font-medium text-foreground">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</p>
+                                </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Approved/Rejected At</p>
+                                  <p className="font-medium text-foreground">{request.updatedAt ? format(new Date(request.updatedAt), "PPP p") : "-"}</p>
+                                </div>
+                              </div>
+
+                              <div className="p-3 bg-muted/30 rounded-lg">
+                                <p className="text-xs text-muted-foreground uppercase mb-1">Comments</p>
+                                <p className="text-foreground">{request.comments || "No comments"}</p>
+                              </div>
+
+                              {request.attachmentBase64 && (
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase mb-2">Attachment</p>
+                                  <img 
+                                    src={request.attachmentBase64} 
+                                    alt={request.attachmentFileName || "Attachment"} 
+                                    className="w-full max-h-64 object-contain rounded-lg border"
+                                  />
+                                  <p className="text-xs text-muted-foreground mt-2">{request.attachmentFileName}</p>
+                                </div>
+                              )}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                         <Button 
                           size="sm" 
                           variant="ghost"
