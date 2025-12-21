@@ -241,6 +241,15 @@ export default function LeaveRequests() {
   });
 
   const downloadPDF = () => {
+    if (filteredRequests.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No requests to download. Please adjust filters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -276,7 +285,7 @@ export default function LeaveRequests() {
       doc.save("leave-requests.pdf");
       toast({
         title: "PDF Downloaded",
-        description: "Leave requests report downloaded successfully.",
+        description: `Leave requests report (${filteredRequests.length} records) downloaded successfully.`,
       });
     } catch (error) {
       toast({
