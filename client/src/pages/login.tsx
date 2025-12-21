@@ -19,6 +19,7 @@ export default function Login() {
   }, []);
 
   const handleLoginAsAdmin = () => {
+    storage.initializeUsers();
     const users = storage.getUsers();
     const adminUser = users.find(u => u.role === 'Admin');
     if (adminUser) {
@@ -27,11 +28,20 @@ export default function Login() {
         title: "Login Successful",
         description: `Welcome, ${adminUser.name}! (Admin)`,
       });
-      window.location.href = "/";
+      setTimeout(() => {
+        window.location.replace("/");
+      }, 100);
+    } else {
+      toast({
+        title: "Error",
+        description: "Admin user not found. Please refresh the page.",
+        variant: "destructive"
+      });
     }
   };
 
   const handleLoginAsCoAdmin = () => {
+    storage.initializeUsers();
     const users = storage.getUsers();
     const coAdminUser = users.find(u => u.role === 'CoAdmin');
     if (coAdminUser) {
@@ -40,7 +50,15 @@ export default function Login() {
         title: "Login Successful",
         description: `Welcome, ${coAdminUser.name}! (CoAdmin)`,
       });
-      window.location.href = "/";
+      setTimeout(() => {
+        window.location.replace("/");
+      }, 100);
+    } else {
+      toast({
+        title: "Error",
+        description: "CoAdmin user not found. Please refresh the page.",
+        variant: "destructive"
+      });
     }
   };
 
