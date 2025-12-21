@@ -125,6 +125,18 @@ export default function EmployeeLeaveSummary() {
 
     const totalDays = filteredLeaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
     
+    // Generate descriptive title for what we're downloading
+    const dateRange = filteredLeaves.length > 0 
+      ? `${format(new Date(Math.min(...filteredLeaves.map(l => new Date(l.startDate).getTime()))), "MMM d, yyyy")} to ${format(new Date(Math.max(...filteredLeaves.map(l => new Date(l.endDate).getTime()))), "MMM d, yyyy")}`
+      : "";
+    
+    const pdfTitle = `Leave summary for ${employee.name} - ${totalDays} days (${dateRange})`;
+
+    toast({
+      title: "Generating PDF",
+      description: pdfTitle,
+    });
+
     try {
       const doc = new jsPDF();
       const pageHeight = doc.internal.pageSize.getHeight();

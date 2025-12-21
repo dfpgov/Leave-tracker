@@ -323,6 +323,21 @@ export default function LeaveRequests() {
       return;
     }
 
+    // Generate descriptive title for what we're downloading
+    const uniqueEmployees = Array.from(new Set(filteredRequests.map(r => r.employeeName)));
+    const dateRange = filteredRequests.length > 0 
+      ? `${format(new Date(Math.min(...filteredRequests.map(r => new Date(r.startDate).getTime()))), "MMM d, yyyy")} to ${format(new Date(Math.max(...filteredRequests.map(r => new Date(r.endDate).getTime()))), "MMM d, yyyy")}`
+      : "";
+    
+    const pdfTitle = uniqueEmployees.length === 1 
+      ? `Leave requests for ${uniqueEmployees[0]} (${dateRange})`
+      : `Leave requests for ${uniqueEmployees.length} employees (${dateRange})`;
+
+    toast({
+      title: "Generating PDF",
+      description: pdfTitle,
+    });
+
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
