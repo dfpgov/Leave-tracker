@@ -40,7 +40,7 @@ export default function EmployeeLeaveSummary() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const allEmployees = storage.getEmployees();
+    const allEmployees = storage.getEmployees().sort((a, b) => a.name.localeCompare(b.name));
     setEmployees(allEmployees);
     setFilteredEmployees(allEmployees);
     setLeaveTypes(storage.getLeaveTypes());
@@ -81,7 +81,7 @@ export default function EmployeeLeaveSummary() {
       });
     }
 
-    setFilteredEmployees(filtered);
+    setFilteredEmployees(filtered.sort((a, b) => a.name.localeCompare(b.name)));
   };
 
   const handleNameFilterChange = (value: string) => {
