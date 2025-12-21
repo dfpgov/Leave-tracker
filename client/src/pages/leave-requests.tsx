@@ -131,6 +131,9 @@ export default function LeaveRequests() {
     }
 
     let attachmentBase64: string | undefined;
+    const isAdmin = currentUser?.role === 'Admin';
+    const initialStatus = isAdmin ? "Approved" : "Pending";
+
     if (attachmentFile && isImage) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -147,20 +150,21 @@ export default function LeaveRequests() {
           endDate: values.endDate,
           approvedDays: requestedDaysNum,
           comments: values.comments || "",
-          status: "Pending",
+          status: initialStatus,
           timestamp: new Date().toISOString(),
           attachmentFileName: attachmentFile.name,
           attachmentBase64: base64,
           doneBy: storage.getCurrentUserId(),
           updatedAt: new Date().toISOString(),
+          updatedBy: isAdmin ? storage.getCurrentUserId() : undefined,
         };
         storage.saveLeaveRequest(newReq);
         refreshData();
         setIsDialogOpen(false);
         form.reset();
         toast({
-          title: "Approved Leave Submitted",
-          description: "Request pending admin approval.",
+          title: isAdmin ? "Leave Approved" : "Approved Leave Submitted",
+          description: isAdmin ? "Leave has been automatically approved." : "Request pending admin approval.",
         });
       };
       reader.readAsDataURL(attachmentFile);
@@ -179,11 +183,12 @@ export default function LeaveRequests() {
       endDate: values.endDate,
       approvedDays: requestedDaysNum,
       comments: values.comments || "",
-      status: "Pending",
+      status: initialStatus,
       timestamp: new Date().toISOString(),
       attachmentFileName: attachmentFile?.name,
       doneBy: storage.getCurrentUserId(),
       updatedAt: new Date().toISOString(),
+      updatedBy: isAdmin ? storage.getCurrentUserId() : undefined,
     };
 
     if (editingId) {
@@ -209,8 +214,8 @@ export default function LeaveRequests() {
       setIsDialogOpen(false);
       form.reset();
       toast({
-        title: "Approved Leave Submitted",
-        description: "Request pending admin approval.",
+        title: isAdmin ? "Leave Approved" : "Approved Leave Submitted",
+        description: isAdmin ? "Leave has been automatically approved." : "Request pending admin approval.",
       });
     }
   };
@@ -313,7 +318,13 @@ export default function LeaveRequests() {
     const matchesLeaveType = leaveTypeFilter === "all-leave-types" || request.leaveTypeId === leaveTypeFilter;
     
     return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate && matchesStatus && matchesLeaveType;
-  }).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  }).sort((a, b) => {
+    // Pending first, then by start date
+    const statusOrder: Record<string, number> = { "Pending": 0, "Approved": 1, "Rejected": 2 };
+    const statusDiff = (statusOrder[a.status] || 3) - (statusOrder[b.status] || 3);
+    if (statusDiff !== 0) return statusDiff;
+    return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+  });
 
   const downloadPDF = () => {
     if (filteredRequests.length === 0) {
