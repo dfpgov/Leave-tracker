@@ -737,31 +737,42 @@ export default function LeaveRequests() {
                     </TableCell>
                     <TableCell className="font-medium">{request.approvedDays}</TableCell>
                     <TableCell>
-                      {currentUser?.role === 'Admin' ? (
-                        <Select
-                          value={request.status}
-                          onValueChange={(value) => {
-                            if (value === 'Approved') handleApprove(request.id);
-                            else if (value === 'Rejected') handleReject(request.id);
-                          }}
-                        >
-                          <SelectTrigger className="h-7 w-24 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Pending">Pending</SelectItem>
-                            <SelectItem value="Approved">Approved</SelectItem>
-                            <SelectItem value="Rejected">Rejected</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          request.status === 'Approved' ? 'bg-green-500/10 text-green-600' :
-                          request.status === 'Rejected' ? 'bg-red-500/10 text-red-600' :
-                          'bg-yellow-500/10 text-yellow-600'
-                        }`}>
-                          {request.status}
+                      {request.status === 'Approved' ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
+                          Approved
                         </span>
+                      ) : request.status === 'Rejected' ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded text-xs font-medium bg-red-100 text-red-700">
+                          Rejected
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+                            Pending
+                          </span>
+                          {currentUser?.role === 'Admin' && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
+                                className="h-6 w-6 p-0 bg-green-100 hover:bg-green-200 text-green-700"
+                                onClick={() => handleApprove(request.id)}
+                                title="Approve"
+                              >
+                                <CheckCircle className="h-3 w-3" />
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
+                                className="h-6 w-6 p-0 bg-red-100 hover:bg-red-200 text-red-700"
+                                onClick={() => handleReject(request.id)}
+                                title="Reject"
+                              >
+                                <XCircle className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm max-w-[200px]">
@@ -799,9 +810,9 @@ export default function LeaveRequests() {
                           size="sm" 
                           variant="ghost"
                           className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          onClick={() => handleEdit(request)}
                           title="Edit Request"
                           disabled={request.status !== 'Pending'}
+                          onClick={() => handleEdit(request)}
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
