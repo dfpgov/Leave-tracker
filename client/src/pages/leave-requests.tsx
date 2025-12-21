@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Trash2 } from "lucide-react";
+import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
@@ -68,6 +68,8 @@ export default function LeaveRequests() {
   const [statusFilter, setStatusFilter] = useState("all-statuses");
   const [leaveTypeFilter, setLeaveTypeFilter] = useState("all-leave-types");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -325,6 +327,20 @@ export default function LeaveRequests() {
     if (statusDiff !== 0) return statusDiff;
     return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
   });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRequests = filteredRequests.slice(startIndex, endIndex);
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
 
   const downloadPDF = () => {
     if (filteredRequests.length === 0) {
@@ -753,6 +769,9 @@ export default function LeaveRequests() {
               <Download className="mr-2 h-4 w-4" /> Download PDF
             </Button>
            </div>
+           <div className="text-sm text-muted-foreground">
+             Total: {filteredRequests.length}
+           </div>
         </div>
 
         <Table>
@@ -770,7 +789,7 @@ export default function LeaveRequests() {
             </TableRow>
             </TableHeader>
             <TableBody>
-            {filteredRequests.map((request) => (
+            {paginatedRequests.map((request) => (
                 <TableRow key={request.id}>
                     <TableCell className="font-medium">{request.employeeName}</TableCell>
                     <TableCell>
@@ -878,6 +897,32 @@ export default function LeaveRequests() {
                 ))}
             </TableBody>
         </Table>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 border-t">
+            <div className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+              >
+                Next <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

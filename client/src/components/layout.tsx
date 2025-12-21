@@ -67,7 +67,7 @@ export default function Layout({ children }: LayoutProps) {
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
             const isActive = location === item.href;
-            const showBadge = item.href === '/leave-requests' && pendingCount > 0;
+            const showBadge = item.href === '/leave-requests' && pendingCount > 0 && currentUser?.role === 'Admin';
             return (
               <Link key={item.href} href={item.href}>
                 <span className={cn(
@@ -79,9 +79,9 @@ export default function Layout({ children }: LayoutProps) {
                   <item.icon className="h-4 w-4" />
                   {item.label}
                   {showBadge && (
-                    <sup className="absolute -top-1 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    <span className="ml-auto bg-red-500 text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
                       {pendingCount}
-                    </sup>
+                    </span>
                   )}
                 </span>
               </Link>

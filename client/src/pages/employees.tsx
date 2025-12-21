@@ -52,7 +52,7 @@ export default function Employees() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 50;
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof employeeSchema>>({
@@ -249,13 +249,7 @@ export default function Employees() {
              />
            </div>
            <div className="text-sm text-muted-foreground">
-             {filteredEmployees.length > 0 ? (
-               <>
-                 Showing {startIndex + 1}-{Math.min(endIndex, filteredEmployees.length)} of {filteredEmployees.length}
-               </>
-             ) : (
-               "No employees"
-             )}
+             Total Employees: {employees.length}
            </div>
         </div>
         <Table>
