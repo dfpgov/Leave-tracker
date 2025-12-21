@@ -173,21 +173,24 @@ export default function EmployeeLeaveSummary() {
       doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
       yPosition += 5;
       
-      if (dateFromFilter || dateToFilter) {
-        const fromText = dateFromFilter ? format(new Date(dateFromFilter), "MMM d, yyyy") : "Any";
-        const toText = dateToFilter ? format(new Date(dateToFilter), "MMM d, yyyy") : "Any";
-        doc.setFont("helvetica", "italic");
-        doc.setFontSize(10);
-        doc.text(`Report Period: ${fromText} to ${toText}`, 15, yPosition);
-        yPosition += 5;
-      }
-      yPosition += 8;
+      // Report Period - always show
+      const fromText = dateFromFilter ? format(new Date(dateFromFilter), "MMM d, yyyy") : "All Dates";
+      const toText = dateToFilter ? format(new Date(dateToFilter), "MMM d, yyyy") : "All Dates";
+      const periodText = (dateFromFilter || dateToFilter) 
+        ? `${fromText} to ${toText}` 
+        : "All Dates";
+      doc.text(`Report Period: ${periodText}`, 15, yPosition);
+      yPosition += 5;
+      
+      // Report Type - show all leave types since no filter applied
+      doc.text(`Report Type: All Leave Types`, 15, yPosition);
+      yPosition += 10;
 
       // Total days box
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(12);
-      doc.text(`Total Leave Days (Filtered): ${totalDays}`, 15, yPosition);
+      doc.text(`Total Leave Days: ${totalDays}`, 15, yPosition);
       yPosition += 10;
 
       // Section header
