@@ -35,7 +35,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -51,6 +51,8 @@ export default function Employees() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof employeeSchema>>({
@@ -72,6 +74,20 @@ export default function Employees() {
     e.designation.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
+
   const onSubmit = (values: z.infer<typeof employeeSchema>) => {
     const newEmployee: Employee = {
       id: editingEmployee ? editingEmployee.id : storage.generateEmployeeId(),
@@ -85,6 +101,7 @@ export default function Employees() {
     setIsDialogOpen(false);
     setEditingEmployee(null);
     form.reset();
+    setCurrentPage(1);
     toast({
       title: editingEmployee ? "Employee Updated" : "Employee Added",
       description: `${values.name} has been ${editingEmployee ? "updated" : "added"} successfully.`,
@@ -106,6 +123,7 @@ export default function Employees() {
     if (confirm("Are you sure you want to delete this employee?")) {
       storage.deleteEmployee(id);
       setEmployees(storage.getEmployees());
+      setCurrentPage(1);
       toast({
         title: "Employee Deleted",
         variant: "destructive",
@@ -217,15 +235,27 @@ export default function Employees() {
       </div>
 
       <div className="bg-card rounded-xl border shadow-sm">
-        <div className="p-4 border-b flex items-center gap-4">
+        <div className="p-4 border-b flex items-center justify-between gap-4">
            <div className="relative flex-1 max-w-sm">
              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
              <Input 
                 placeholder="Search employees..." 
                 className="pl-9 bg-muted/30" 
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
              />
+           </div>
+           <div className="text-sm text-muted-foreground">
+             {filteredEmployees.length > 0 ? (
+               <>
+                 Showing {startIndex + 1}-{Math.min(endIndex, filteredEmployees.length)} of {filteredEmployees.length}
+               </>
+             ) : (
+               "No employees"
+             )}
            </div>
         </div>
         <Table>
@@ -241,14 +271,14 @@ export default function Employees() {
             </TableRow>
             </TableHeader>
             <TableBody>
-            {filteredEmployees.length === 0 ? (
+            {paginatedEmployees.length === 0 ? (
                 <TableRow>
                     <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                        No employees found.
+                        {filteredEmployees.length === 0 ? "No employees found." : "No data on this page."}
                     </TableCell>
                 </TableRow>
             ) : (
-                filteredEmployees.map((employee) => (
+                paginatedEmployees.map((employee) => (
                     <TableRow key={employee.id} className="group">
                     <TableCell className="font-mono text-xs text-muted-foreground">{employee.id}</TableCell>
                     <TableCell className="font-medium text-foreground">{employee.name}</TableCell>
@@ -273,6 +303,32 @@ export default function Employees() {
             )}
             </TableBody>
         </Table>
+
+        <div className="flex items-center justify-between p-4 border-t">
+          <div className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages || 1}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviousPage}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages || totalPages === 0}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
