@@ -66,10 +66,41 @@ const INITIAL_LEAVE_TYPES: LeaveType[] = [
   { id: 'LT003', name: 'Earned Leave', maxDays: null, doneBy: 'ADMIN001' },
 ];
 
-const INITIAL_EMPLOYEES: Employee[] = [
-  { id: 'EMP001', name: 'John Doe', designation: 'Software Engineer', department: 'IT', gender: 'Male', lastEdited: new Date().toISOString(), doneBy: 'ADMIN001' },
-  { id: 'EMP002', name: 'Jane Smith', designation: 'HR Manager', department: 'HR', gender: 'Female', lastEdited: new Date().toISOString(), doneBy: 'ADMIN001' },
-];
+// Generate sample employees for demo
+const generateSampleEmployees = (): Employee[] => {
+  const firstNames = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Robert', 'Jessica', 'James', 'Amanda', 'William', 'Ashley', 'Richard', 'Michelle', 'Charles', 'Jennifer', 'Joseph', 'Maria', 'Thomas', 'Lisa', 'Christopher', 'Nancy', 'Daniel', 'Karen', 'Matthew', 'Lisa', 'Mark', 'Betty', 'Donald', 'Sandra', 'Steven', 'Deborah', 'Paul', 'Stephanie', 'Andrew', 'Susan', 'Joshua', 'Jacqueline', 'Kenneth', 'Mary', 'Kevin', 'Elizabeth'];
+  const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Perez', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson'];
+  const designations = ['Software Engineer', 'Senior Developer', 'Manager', 'Senior Manager', 'Director', 'Analyst', 'Coordinator', 'Specialist', 'Officer', 'Associate', 'Consultant', 'Executive', 'Administrator', 'Supervisor', 'Intern'];
+  const departments = ['IT', 'HR', 'Finance', 'Sales', 'Marketing', 'Operations', 'Administration', 'Legal', 'Production', 'Quality', 'Research', 'Development'];
+  const genders: Array<'Male' | 'Female' | 'Other'> = ['Male', 'Female'];
+
+  const employees: Employee[] = [];
+  
+  for (let i = 1; i <= 100; i++) {
+    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+    const name = `${firstName} ${lastName}`;
+    const designation = designations[Math.floor(Math.random() * designations.length)];
+    const department = departments[Math.floor(Math.random() * departments.length)];
+    const gender = genders[Math.floor(Math.random() * genders.length)];
+    
+    const id = `EMP${String(i).padStart(4, '0')}`;
+    
+    employees.push({
+      id,
+      name,
+      designation,
+      department,
+      gender,
+      lastEdited: new Date().toISOString(),
+      doneBy: 'ADMIN001'
+    });
+  }
+  
+  return employees;
+};
+
+const INITIAL_EMPLOYEES: Employee[] = generateSampleEmployees();
 
 const INITIAL_HOLIDAYS: Holiday[] = [
   { id: 'H001', name: 'New Year', startDate: '2025-01-01', endDate: '2025-01-01', totalDays: 1, doneBy: 'ADMIN001' },
