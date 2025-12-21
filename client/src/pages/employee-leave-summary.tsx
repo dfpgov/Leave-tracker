@@ -181,6 +181,12 @@ export default function EmployeeLeaveSummary() {
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
       doc.text("Employee Leave Summary", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 5;
+
+      // Border after headline
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.3);
+      doc.line(15, yPosition, pageWidth - 15, yPosition);
       yPosition += 8;
 
       doc.setFontSize(11);
@@ -208,14 +214,26 @@ export default function EmployeeLeaveSummary() {
       doc.text(`Report Period: ${periodText}`, rightX, infoStartY + 6);
       doc.text(`Report Type: ${selectedLeaveType}`, rightX, infoStartY + 12);
       
-      yPosition = infoStartY + 20;
+      yPosition = infoStartY + 18;
+
+      // Border after employee info
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.3);
+      doc.line(15, yPosition, pageWidth - 15, yPosition);
+      yPosition += 8;
 
       // Total days box
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(12);
       doc.text(`Total Leave Days: ${totalDays}`, 15, yPosition);
-      yPosition += 10;
+      yPosition += 8;
+
+      // Border before leave breakdown
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.3);
+      doc.line(15, yPosition, pageWidth - 15, yPosition);
+      yPosition += 8;
 
       // Section header
       doc.setFont("helvetica", "bold");
