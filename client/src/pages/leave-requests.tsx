@@ -59,14 +59,14 @@ export default function LeaveRequests() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [employeeFilterId, setEmployeeFilterId] = useState("");
+  const [employeeFilterId, setEmployeeFilterId] = useState("all-employees");
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ base64: string; name: string } | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all-statuses");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -235,10 +235,10 @@ export default function LeaveRequests() {
   const filteredRequests = requests.filter(request => {
     const matchesSearch = !searchTerm || 
       request.employeeName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEmployee = !employeeFilterId || request.employeeId === employeeFilterId;
+    const matchesEmployee = employeeFilterId === "all-employees" || request.employeeId === employeeFilterId;
     const matchesStartDate = !startDateFilter || new Date(request.startDate) >= new Date(startDateFilter);
     const matchesEndDate = !endDateFilter || new Date(request.endDate) <= new Date(endDateFilter);
-    const matchesStatus = !statusFilter || request.status === statusFilter;
+    const matchesStatus = statusFilter === "all-statuses" || request.status === statusFilter;
     
     return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate && matchesStatus;
   });
@@ -536,7 +536,7 @@ export default function LeaveRequests() {
                         <SelectValue placeholder="All employees" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All Employees</SelectItem>
+                        <SelectItem value="all-employees">All Employees</SelectItem>
                         {employees.map(emp => (
                           <SelectItem key={emp.id} value={emp.id}>
                             {emp.name}
@@ -553,7 +553,7 @@ export default function LeaveRequests() {
                         <SelectValue placeholder="All statuses" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All Statuses</SelectItem>
+                        <SelectItem value="all-statuses">All Statuses</SelectItem>
                         <SelectItem value="Pending">Pending</SelectItem>
                         <SelectItem value="Approved">Approved</SelectItem>
                         <SelectItem value="Rejected">Rejected</SelectItem>
@@ -586,8 +586,8 @@ export default function LeaveRequests() {
                       variant="outline"
                       className="flex-1"
                       onClick={() => {
-                        setEmployeeFilterId("");
-                        setStatusFilter("");
+                        setEmployeeFilterId("all-employees");
+                        setStatusFilter("all-statuses");
                         setStartDateFilter("");
                         setEndDateFilter("");
                       }}
