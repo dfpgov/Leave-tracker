@@ -343,18 +343,9 @@ export default function LeaveRequests() {
       // Report Title
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(25, 55, 130);
-      doc.text("Leave Requests Report", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 2;
-
-      // Add colorful border after heading
-      doc.setDrawColor(41, 98, 255);
-      doc.setLineWidth(2);
-      doc.line(15, yPosition + 3, pageWidth - 15, yPosition + 3);
-      yPosition += 10;
-
-      // Reset text color
       doc.setTextColor(0, 0, 0);
+      doc.text("Leave Requests Report", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 8;
 
       // Generated Date
       doc.setFontSize(10);
@@ -368,15 +359,13 @@ export default function LeaveRequests() {
       const startX = 15;
       let currentY = yPosition;
 
-      // Table Header with blue background
+      // Table Header
       doc.setFont("helvetica", "bold");
-      doc.setFillColor(41, 98, 255);
-      doc.setTextColor(255, 255, 255);
+      doc.setTextColor(0, 0, 0);
       const headers = ["Employee", "Leave Type", "Start Date", "End Date", "Days", "Status"];
       let currentX = startX;
       
       headers.forEach((header, i) => {
-        doc.rect(currentX, currentY - 4, colWidths[i], 6, "F");
         doc.setFontSize(9);
         doc.text(header, currentX + 1, currentY, { maxWidth: colWidths[i] - 2 });
         currentX += colWidths[i];
@@ -387,8 +376,9 @@ export default function LeaveRequests() {
       doc.setFont("helvetica", "normal");
       currentY += 8;
       
-      // Table Data with alternating colors
-      filteredRequests.forEach((r, index) => {
+      // Table Data
+      doc.setTextColor(0, 0, 0);
+      filteredRequests.forEach((r) => {
         const rowData = [
           r.employeeName,
           r.leaveTypeName,
@@ -398,26 +388,12 @@ export default function LeaveRequests() {
           r.status,
         ];
         
-        // Alternating row colors
-        if (index % 2 === 0) {
-          doc.setFillColor(240, 245, 255);
-        } else {
-          doc.setFillColor(255, 255, 255);
-        }
-        
         currentX = startX;
-        doc.rect(startX, currentY - 4, colWidths.reduce((a, b) => a + b, 0), 5, "F");
-        
         doc.setFontSize(8);
         rowData.forEach((data, i) => {
           doc.text(data, currentX + 1, currentY, { maxWidth: colWidths[i] - 2 });
           currentX += colWidths[i];
         });
-
-        // Draw subtle borders between rows
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.3);
-        doc.line(15, currentY + 1, pageWidth - 15, currentY + 1);
 
         currentY += 6;
 
@@ -426,15 +402,6 @@ export default function LeaveRequests() {
           doc.addPage();
           currentY = 15;
         }
-      });
-
-      // Draw table border
-      doc.setDrawColor(41, 98, 255);
-      doc.setLineWidth(1);
-      currentX = startX;
-      colWidths.forEach((width) => {
-        doc.rect(currentX, yPosition - 4, width, currentY - yPosition + 4);
-        currentX += width;
       });
 
       doc.save(`leave-requests-${format(new Date(), "yyyy-MM-dd")}.pdf`);
