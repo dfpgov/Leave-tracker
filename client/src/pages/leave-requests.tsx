@@ -321,10 +321,12 @@ export default function LeaveRequests() {
     
     return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate && matchesStatus && matchesLeaveType;
   }).sort((a, b) => {
-    // Pending first, then by start date
-    const statusOrder: Record<string, number> = { "Pending": 0, "Approved": 1, "Rejected": 2 };
-    const statusDiff = (statusOrder[a.status] || 3) - (statusOrder[b.status] || 3);
-    if (statusDiff !== 0) return statusDiff;
+    // Pending first, then Approved, then Rejected
+    if (a.status === "Pending" && b.status !== "Pending") return -1;
+    if (a.status !== "Pending" && b.status === "Pending") return 1;
+    if (a.status === "Approved" && b.status === "Rejected") return -1;
+    if (a.status === "Rejected" && b.status === "Approved") return 1;
+    // Same status - sort by start date
     return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
   });
 
@@ -898,11 +900,11 @@ export default function LeaveRequests() {
             </TableBody>
         </Table>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between p-4 border-t">
-            <div className="text-sm text-muted-foreground">
-              Page {currentPage} of {totalPages}
-            </div>
+        <div className="flex items-center justify-between p-4 border-t">
+          <div className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages || 1}
+          </div>
+          {totalPages > 1 && (
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -921,8 +923,8 @@ export default function LeaveRequests() {
                 Next <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
