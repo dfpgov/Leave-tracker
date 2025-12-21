@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { storage } from "@/lib/storage";
+import logoImg from "@/assets/logo.png";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -55,12 +56,13 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen flex bg-background">
       <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col fixed inset-y-0 z-50">
-        <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">L</span>
+        <div className="py-4 flex items-center px-4 border-b border-sidebar-border">
+          <div className="flex items-center gap-3">
+            <img src={logoImg} alt="Logo" className="h-10 w-10 object-contain" />
+            <div className="flex flex-col">
+              <span className="text-sidebar-foreground font-heading font-semibold text-lg tracking-tight leading-tight">Leave Tracker</span>
+              <span className="text-sidebar-foreground/60 text-[10px] leading-tight">Department of Films & Publications</span>
             </div>
-            <span className="text-sidebar-foreground font-heading font-semibold text-lg tracking-tight">LeaveManager</span>
           </div>
         </div>
 
