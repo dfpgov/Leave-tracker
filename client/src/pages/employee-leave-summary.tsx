@@ -27,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { Eye, Download, X } from "lucide-react";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
-import { PDF_HEADER_IMAGE } from "@/lib/pdf-header";
 import { useToast } from "@/hooks/use-toast";
 
 export default function EmployeeLeaveSummary() {
@@ -163,25 +162,19 @@ export default function EmployeeLeaveSummary() {
       const doc = new jsPDF();
       const pageHeight = doc.internal.pageSize.getHeight();
       const pageWidth = doc.internal.pageSize.getWidth();
-      let yPosition = 5;
-
-      // Add header image
-      const imgWidth = pageWidth - 20;
-      const imgHeight = 25;
-      doc.addImage(PDF_HEADER_IMAGE, 'PNG', 10, yPosition, imgWidth, imgHeight);
-      yPosition += imgHeight + 5;
+      let yPosition = 15;
 
       // Department Header
-      doc.setFontSize(14);
+      doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.text("Department of Films & Publications", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 5;
+      yPosition += 7;
 
       // Address
-      doc.setFontSize(10);
+      doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       doc.text("112 Circuit House Rd, Dhaka 1205", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 10;
+      yPosition += 12;
 
       // Report Title
       doc.setFontSize(16);

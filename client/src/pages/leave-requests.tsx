@@ -40,7 +40,6 @@ import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Tr
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
-import { PDF_HEADER_IMAGE } from "@/lib/pdf-header";
 
 const requestSchema = z.object({
   employeeId: z.string().min(1, "Employee is required"),
@@ -107,17 +106,29 @@ export default function LeaveRequests() {
 
     const requestedDaysNum = parseInt(values.requestedDays);
     
-    if (leaveType.name === "Casual Leave" && leaveType.maxDays) {
+    if (leaveType.name === "Casual Leave") {
+       const currentYear = new Date().getFullYear();
        const usedDays = requests
-         .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved')
+         .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved' && new Date(r.startDate).getFullYear() === currentYear)
          .reduce((acc, curr) => acc + curr.approvedDays, 0);
-         
-       if (usedDays + requestedDaysNum > leaveType.maxDays) {
+       
+       const maxDays = 20;
+       if (usedDays >= maxDays) {
          toast({
-           title: "Note",
-           description: `${employee.name} has already used ${usedDays} Casual Leave days. Limit is ${leaveType.maxDays}. Request submitted for approval.`,
-           variant: "default"
+           title: "Cannot Add Leave",
+           description: `${employee.name} has already used all ${maxDays} Casual Leave days for this year.`,
+           variant: "destructive"
          });
+         return;
+       }
+       
+       if (usedDays + requestedDaysNum > maxDays) {
+         toast({
+           title: "Cannot Add Leave",
+           description: `${employee.name} has ${maxDays - usedDays} Casual Leave days remaining. Requested ${requestedDaysNum} days exceeds the limit.`,
+           variant: "destructive"
+         });
+         return;
        }
     }
 
@@ -373,25 +384,19 @@ export default function LeaveRequests() {
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
-      let yPosition = 5;
-
-      // Add header image
-      const imgWidth = pageWidth - 20;
-      const imgHeight = 25;
-      doc.addImage(PDF_HEADER_IMAGE, 'PNG', 10, yPosition, imgWidth, imgHeight);
-      yPosition += imgHeight + 5;
+      let yPosition = 15;
 
       // Department Header
-      doc.setFontSize(14);
+      doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.text("Department of Films & Publications", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 5;
+      yPosition += 7;
 
       // Address
-      doc.setFontSize(10);
+      doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       doc.text("112 Circuit House Rd, Dhaka 1205", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 10;
+      yPosition += 12;
 
       // Report Title
       doc.setFontSize(16);
