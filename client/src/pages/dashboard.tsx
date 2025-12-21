@@ -2,25 +2,32 @@ import { useState, useEffect } from "react";
 import { storage } from "@/lib/storage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { Users, UserCheck } from "lucide-react";
+import { Users, UserCheck, Clock } from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const [stats, setStats] = useState({
     totalEmployees: 0,
-    employeesOnLeave: 0
+    employeesOnLeave: 0,
+    pendingLeaves: 0
   });
   const [employees, setEmployees] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
 
   useEffect(() => {
     const s = storage.getStats();
+    const allRequests = storage.getLeaveRequests();
+    const pendingCount = allRequests.filter(r => r.status === 'Pending').length;
     setStats({
       totalEmployees: s.totalEmployees,
-      employeesOnLeave: s.employeesOnLeave
+      employeesOnLeave: s.employeesOnLeave,
+      pendingLeaves: pendingCount
     });
     setEmployees(storage.getEmployees());
-    setRequests(storage.getLeaveRequests());
+    setRequests(allRequests);
   }, []);
 
   // Compute casual leave summary
@@ -75,23 +82,39 @@ export default function Dashboard() {
             <p className="text-muted-foreground mt-1">Overview of leave records and employee status</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <Card className="bg-primary text-primary-foreground border-none">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-none overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-primary-foreground/90">Total Employees</CardTitle>
-                    <Users className="h-4 w-4 text-primary-foreground/90" />
+                    <CardTitle className="text-sm font-medium text-white/90">Pending Leave Requests</CardTitle>
+                    <Clock className="h-4 w-4 text-white/90" />
                 </CardHeader>
-                <CardContent>
-                    <div className="text-3xl font-bold">{stats.totalEmployees}</div>
+                <CardContent className="space-y-3">
+                    <div className="text-5xl font-bold text-white">{stats.pendingLeaves}</div>
+                    <Button 
+                      onClick={() => setLocation('/leave-requests')}
+                      className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm"
+                      variant="ghost"
+                    >
+                      Clear All Pending
+                    </Button>
                 </CardContent>
             </Card>
-             <Card className="bg-accent text-accent-foreground border-none">
+            <Card className="border-none overflow-hidden" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)' }}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-accent-foreground/90">Employees on Leave</CardTitle>
-                    <UserCheck className="h-4 w-4 text-accent-foreground/90" />
+                    <CardTitle className="text-sm font-medium text-white/90">Total Employees</CardTitle>
+                    <Users className="h-4 w-4 text-white/90" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-3xl font-bold">{stats.employeesOnLeave}</div>
+                    <div className="text-5xl font-bold text-white">{stats.totalEmployees}</div>
+                </CardContent>
+            </Card>
+            <Card className="border-none overflow-hidden" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-white/90">Employees on Leave</CardTitle>
+                    <UserCheck className="h-4 w-4 text-white/90" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-5xl font-bold text-white">{stats.employeesOnLeave}</div>
                 </CardContent>
             </Card>
         </div>

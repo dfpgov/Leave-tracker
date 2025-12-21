@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
 import { 
   LayoutDashboard, 
   Users, 
@@ -22,6 +23,18 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const currentUser = storage.getCurrentUser();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const updatePendingCount = () => {
+      const requests = storage.getLeaveRequests();
+      const pending = requests.filter(r => r.status === 'Pending').length;
+      setPendingCount(pending);
+    };
+    updatePendingCount();
+    const interval = setInterval(updatePendingCount, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = () => {
     storage.logout();
@@ -54,16 +67,22 @@ export default function Layout({ children }: LayoutProps) {
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
             const isActive = location === item.href;
+            const showBadge = item.href === '/leave-requests' && pendingCount > 0;
             return (
               <Link key={item.href} href={item.href}>
                 <span className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors cursor-pointer",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors cursor-pointer relative",
                   isActive 
                     ? "bg-sidebar-accent text-sidebar-accent-foreground" 
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}>
                   <item.icon className="h-4 w-4" />
                   {item.label}
+                  {showBadge && (
+                    <sup className="absolute -top-1 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                      {pendingCount}
+                    </sup>
+                  )}
                 </span>
               </Link>
             );
