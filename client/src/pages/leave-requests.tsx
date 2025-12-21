@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
@@ -66,6 +66,7 @@ export default function LeaveRequests() {
   const [selectedImage, setSelectedImage] = useState<{ base64: string; name: string } | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [statusFilter, setStatusFilter] = useState("all-statuses");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -184,14 +185,33 @@ export default function LeaveRequests() {
       updatedAt: new Date().toISOString(),
     };
 
-    storage.saveLeaveRequest(newRequest);
-    refreshData();
-    setIsDialogOpen(false);
-    form.reset();
-    toast({
-      title: "Leave Request Submitted",
-      description: "Request pending admin approval.",
-    });
+    if (editingId) {
+      // Update existing request
+      const updatedRequest = {
+        ...newRequest,
+        id: editingId,
+        timestamp: requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString(),
+      };
+      storage.saveLeaveRequest(updatedRequest);
+      refreshData();
+      setIsDialogOpen(false);
+      setEditingId(null);
+      form.reset();
+      toast({
+        title: "Request Updated",
+        description: "Leave request has been updated successfully.",
+      });
+    } else {
+      // Create new request
+      storage.saveLeaveRequest(newRequest);
+      refreshData();
+      setIsDialogOpen(false);
+      form.reset();
+      toast({
+        title: "Leave Request Submitted",
+        description: "Request pending admin approval.",
+      });
+    }
   };
   
   const handleApprove = (id: string) => {
@@ -225,6 +245,57 @@ export default function LeaveRequests() {
       description: `Leave request for ${request.employeeName} has been rejected.`,
       variant: "destructive",
     });
+  };
+
+  const handleEdit = (request: LeaveRequest) => {
+    if (request.status !== "Pending") {
+      toast({
+        title: "Cannot Edit",
+        description: "Only pending requests can be edited.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const employee = employees.find(e => e.id === request.employeeId);
+    const leaveType = leaveTypes.find(t => t.id === request.leaveTypeId);
+    
+    if (!employee || !leaveType) return;
+
+    setEditingId(request.id);
+    setEmployeeSearchTerm(employee.name);
+    form.reset({
+      employeeId: request.employeeId,
+      leaveTypeId: request.leaveTypeId,
+      startDate: request.startDate,
+      endDate: request.endDate,
+      requestedDays: request.approvedDays.toString(),
+      comments: request.comments,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    const request = requests.find(r => r.id === id);
+    if (!request) return;
+
+    if (request.status !== "Pending") {
+      toast({
+        title: "Cannot Delete",
+        description: "Only pending requests can be deleted.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (confirm(`Are you sure you want to delete the leave request for ${request.employeeName}?`)) {
+      storage.deleteLeaveRequest(id);
+      refreshData();
+      toast({
+        title: "Request Deleted",
+        description: `Leave request for ${request.employeeName} has been deleted.`,
+      });
+    }
   };
 
   const filteredEmployees = employees.filter(e =>
@@ -381,6 +452,8 @@ export default function LeaveRequests() {
   };
 
   const openAddDialog = () => {
+    setEditingId(null);
+    setEmployeeSearchTerm("");
     form.reset({
       employeeId: "",
       leaveTypeId: "",
@@ -408,7 +481,7 @@ export default function LeaveRequests() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Add Leave Request</DialogTitle>
+              <DialogTitle>{editingId ? "Edit Leave Request" : "Add Leave Request"}</DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -555,7 +628,7 @@ export default function LeaveRequests() {
                 />
 
                 <Button type="submit" className="w-full">
-                  Submit Request
+                  {editingId ? "Update Request" : "Submit Request"}
                 </Button>
               </form>
             </Form>
@@ -731,28 +804,53 @@ export default function LeaveRequests() {
                     <TableCell className="text-sm">{storage.getUserName(request.doneBy)}</TableCell>
                     <TableCell className="text-sm">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</TableCell>
                     <TableCell className="text-right">
-                      {currentUser?.role === 'Admin' && request.status === 'Pending' ? (
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                            onClick={() => handleApprove(request.id)}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Approve
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleReject(request.id)}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Reject
-                          </Button>
-                        </div>
-                      ) : null}
+                      <div className="flex justify-end gap-1">
+                        {currentUser?.role === 'Admin' && request.status === 'Pending' ? (
+                          <>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => handleApprove(request.id)}
+                              title="Approve Request"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleReject(request.id)}
+                              title="Reject Request"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : null}
+                        
+                        {currentUser?.role === 'CoAdmin' && request.status === 'Pending' ? (
+                          <>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => handleEdit(request)}
+                              title="Edit Request"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleDelete(request.id)}
+                              title="Delete Request"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
                     </TableCell>
                     </TableRow>
                 ))}
