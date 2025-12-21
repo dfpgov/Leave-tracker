@@ -23,7 +23,10 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!username || !password) {
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+    
+    if (!trimmedUsername || !trimmedPassword) {
       toast({
         title: "Error",
         description: "Please enter username and password.",
@@ -34,20 +37,30 @@ export default function Login() {
 
     setIsLoading(true);
 
-    const users = storage.getUsers();
-    const user = users.find(u => u.name === username && u.password === password);
+    try {
+      const users = storage.getUsers();
+      const user = users.find(u => u.name === trimmedUsername && u.password === trimmedPassword);
 
-    if (user) {
-      storage.login(user.id);
+      if (user) {
+        storage.login(user.id);
+        toast({
+          title: "Login Successful",
+          description: `Welcome, ${user.name}! (${user.role})`,
+        });
+        setTimeout(() => {
+          setLocation("/");
+        }, 500);
+      } else {
+        toast({
+          title: "Login Failed",
+          description: "Invalid username or password.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
       toast({
-        title: "Login Successful",
-        description: `Welcome, ${user.name}! (${user.role})`,
-      });
-      setLocation("/");
-    } else {
-      toast({
-        title: "Login Failed",
-        description: "Invalid username or password.",
+        title: "Error",
+        description: "An error occurred during login. Please try again.",
         variant: "destructive",
       });
     }
