@@ -58,7 +58,7 @@ export default function Layout({ children }: LayoutProps) {
       <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col fixed inset-y-0 z-50">
         <div className="py-4 flex items-center px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <img src={logoImg} alt="Logo" className="h-10 w-10 object-contain" />
+            <img src={logoImg} alt="Logo" className="h-10 w-10 object-contain rounded-full" />
             <div className="flex flex-col">
               <span className="text-sidebar-foreground font-heading font-semibold text-lg tracking-tight leading-tight">Leave Tracker</span>
               <span className="text-sidebar-foreground/60 text-[10px] leading-tight">Department of Films & Publications</span>
