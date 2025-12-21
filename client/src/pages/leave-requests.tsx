@@ -718,8 +718,8 @@ export default function LeaveRequests() {
                 <TableHead>Days</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Comments</TableHead>
-                <TableHead>Done By</TableHead>
-                <TableHead>Updated By</TableHead>
+                <TableHead>Submitted By</TableHead>
+                <TableHead>Approved By</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
             </TableRow>
             </TableHeader>
@@ -737,9 +737,32 @@ export default function LeaveRequests() {
                     </TableCell>
                     <TableCell className="font-medium">{request.approvedDays}</TableCell>
                     <TableCell>
-                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600">
-                            {request.status}
+                      {currentUser?.role === 'Admin' ? (
+                        <Select
+                          value={request.status}
+                          onValueChange={(value) => {
+                            if (value === 'Approved') handleApprove(request.id);
+                            else if (value === 'Rejected') handleReject(request.id);
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-24 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Pending">Pending</SelectItem>
+                            <SelectItem value="Approved">Approved</SelectItem>
+                            <SelectItem value="Rejected">Rejected</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          request.status === 'Approved' ? 'bg-green-500/10 text-green-600' :
+                          request.status === 'Rejected' ? 'bg-red-500/10 text-red-600' :
+                          'bg-yellow-500/10 text-yellow-600'
+                        }`}>
+                          {request.status}
                         </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm max-w-[200px]">
                         <div className="flex items-center gap-2">
@@ -772,51 +795,26 @@ export default function LeaveRequests() {
                     <TableCell className="text-sm">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        {currentUser?.role === 'Admin' && request.status === 'Pending' ? (
-                          <>
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                              onClick={() => handleApprove(request.id)}
-                              title="Approve Request"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleReject(request.id)}
-                              title="Reject Request"
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : null}
-                        
-                        {currentUser?.role === 'CoAdmin' && request.status === 'Pending' ? (
-                          <>
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => handleEdit(request)}
-                              title="Edit Request"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleDelete(request.id)}
-                              title="Delete Request"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : null}
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => handleEdit(request)}
+                          title="Edit Request"
+                          disabled={request.status !== 'Pending'}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDelete(request.id)}
+                          title="Delete Request"
+                          disabled={request.status !== 'Pending'}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                     </TableRow>
