@@ -131,7 +131,20 @@ export default function EmployeeLeaveSummary() {
       const pageWidth = doc.internal.pageSize.getWidth();
       let yPosition = 15;
 
+      // Department Header
       doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("Department of Films & Publications", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 7;
+
+      // Address
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text("112 Circuit House Rd, Dhaka 1205", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 12;
+
+      // Report Title
+      doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.text("Employee Leave Summary", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 8;
