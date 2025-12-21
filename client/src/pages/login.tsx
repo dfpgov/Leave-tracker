@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,69 +7,41 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { storage } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
-import { Lock, Mail } from "lucide-react";
+import { Shield, UserCheck } from "lucide-react";
 
 export default function Login() {
-  const [, setLocation] = useLocation();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Initialize users on component mount
   useEffect(() => {
     storage.initializeUsers();
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const trimmedUsername = username.trim();
-    const trimmedPassword = password.trim();
-    
-    if (!trimmedUsername || !trimmedPassword) {
+  const handleLoginAsAdmin = () => {
+    const users = storage.getUsers();
+    const adminUser = users.find(u => u.role === 'Admin');
+    if (adminUser) {
+      storage.login(adminUser.id);
       toast({
-        title: "Error",
-        description: "Please enter username and password.",
-        variant: "destructive",
+        title: "Login Successful",
+        description: `Welcome, ${adminUser.name}! (Admin)`,
       });
-      return;
+      window.location.href = "/";
     }
+  };
 
-    setIsLoading(true);
-
-    try {
-      const users = storage.getUsers();
-      const user = users.find(u => u.name === trimmedUsername && u.password === trimmedPassword);
-
-      if (user) {
-        storage.login(user.id);
-        toast({
-          title: "Login Successful",
-          description: `Welcome, ${user.name}! (${user.role})`,
-        });
-        setTimeout(() => {
-          setLocation("/");
-        }, 500);
-      } else {
-        toast({
-          title: "Login Failed",
-          description: "Invalid username or password.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+  const handleLoginAsCoAdmin = () => {
+    const users = storage.getUsers();
+    const coAdminUser = users.find(u => u.role === 'CoAdmin');
+    if (coAdminUser) {
+      storage.login(coAdminUser.id);
       toast({
-        title: "Error",
-        description: "An error occurred during login. Please try again.",
-        variant: "destructive",
+        title: "Login Successful",
+        description: `Welcome, ${coAdminUser.name}! (CoAdmin)`,
       });
+      window.location.href = "/";
     }
-
-    setIsLoading(false);
   };
 
   return (
@@ -80,56 +51,37 @@ export default function Login() {
       <Card className="w-full max-w-md shadow-2xl border-primary/10">
         <CardHeader className="space-y-1 text-center">
           <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mx-auto mb-4">
-             <Lock className="w-6 h-6" />
+             <Shield className="w-6 h-6" />
           </div>
-          <CardTitle className="text-2xl font-heading font-bold">Welcome Back</CardTitle>
+          <CardTitle className="text-2xl font-heading font-bold">Leave Management System</CardTitle>
           <CardDescription>
-            Login to access the leave management portal
+            Select a role to login
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Username</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="pl-9"
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-9"
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Logging in..." : "Login"}
-            </Button>
-          </form>
+        <CardContent className="space-y-4">
+          <Button 
+            onClick={handleLoginAsAdmin} 
+            className="w-full h-14 text-lg"
+            variant="default"
+          >
+            <Shield className="mr-3 h-5 w-5" />
+            Login as Admin
+          </Button>
+          
+          <Button 
+            onClick={handleLoginAsCoAdmin} 
+            className="w-full h-14 text-lg"
+            variant="outline"
+          >
+            <UserCheck className="mr-3 h-5 w-5" />
+            Login as CoAdmin
+          </Button>
 
           <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-            <p className="text-xs font-medium text-muted-foreground mb-2">Demo Credentials:</p>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p><strong>Admin:</strong> Admin / admin123</p>
-              <p><strong>CoAdmin:</strong> CoAdmin / coadmin123</p>
-            </div>
+            <p className="text-sm text-muted-foreground text-center">
+              <strong>Admin:</strong> Can approve/reject leave requests<br/>
+              <strong>CoAdmin:</strong> Can create, edit, and delete leave requests
+            </p>
           </div>
         </CardContent>
       </Card>
