@@ -40,6 +40,7 @@ import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Tr
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
+import { PDF_HEADER_IMAGE } from "@/lib/pdf-header";
 
 const requestSchema = z.object({
   employeeId: z.string().min(1, "Employee is required"),
@@ -372,19 +373,25 @@ export default function LeaveRequests() {
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
-      let yPosition = 15;
+      let yPosition = 5;
+
+      // Add header image
+      const imgWidth = pageWidth - 20;
+      const imgHeight = 25;
+      doc.addImage(PDF_HEADER_IMAGE, 'PNG', 10, yPosition, imgWidth, imgHeight);
+      yPosition += imgHeight + 5;
 
       // Department Header
-      doc.setFontSize(18);
+      doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.text("Department of Films & Publications", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 7;
+      yPosition += 5;
 
       // Address
-      doc.setFontSize(11);
+      doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.text("112 Circuit House Rd, Dhaka 1205", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 12;
+      yPosition += 10;
 
       // Report Title
       doc.setFontSize(16);
