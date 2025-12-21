@@ -146,8 +146,18 @@ export default function EmployeeLeaveSummary() {
       // Report Title
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
+      doc.setTextColor(25, 55, 130);
       doc.text("Employee Leave Summary", pageWidth / 2, yPosition, { align: "center" });
-      yPosition += 8;
+      yPosition += 2;
+
+      // Add colorful border after heading
+      doc.setDrawColor(41, 98, 255);
+      doc.setLineWidth(2);
+      doc.line(15, yPosition + 3, pageWidth - 15, yPosition + 3);
+      yPosition += 10;
+
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
 
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
@@ -170,15 +180,22 @@ export default function EmployeeLeaveSummary() {
       }
       yPosition += 5;
 
-      doc.setFillColor(220, 220, 220);
+      // Colorful total days box
+      doc.setFillColor(41, 98, 255);
       doc.rect(15, yPosition - 2, pageWidth - 30, 12, "F");
       doc.setFont("helvetica", "bold");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
       doc.text(`Total Leave Days (Filtered): ${totalDays}`, pageWidth / 2, yPosition + 3, { align: "center" });
+      doc.setTextColor(0, 0, 0);
       yPosition += 15;
 
+      // Section header with color
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
+      doc.setTextColor(25, 55, 130);
       doc.text("Leave Breakdown by Type:", 15, yPosition);
+      doc.setTextColor(0, 0, 0);
       yPosition += 7;
 
       doc.setFontSize(10);
