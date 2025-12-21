@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { storage, Employee } from "@/lib/storage";
+import { storage, Employee, LeaveType } from "@/lib/storage";
 import {
   Table,
   TableBody,
@@ -16,6 +16,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Eye, Download, X } from "lucide-react";
 import { format } from "date-fns";
@@ -25,15 +32,18 @@ import { useToast } from "@/hooks/use-toast";
 export default function EmployeeLeaveSummary() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [nameFilter, setNameFilter] = useState("");
   const [dateFromFilter, setDateFromFilter] = useState("");
   const [dateToFilter, setDateToFilter] = useState("");
+  const [leaveTypeFilter, setLeaveTypeFilter] = useState("all-types");
   const { toast } = useToast();
 
   useEffect(() => {
     const allEmployees = storage.getEmployees();
     setEmployees(allEmployees);
     setFilteredEmployees(allEmployees);
+    setLeaveTypes(storage.getLeaveTypes());
   }, []);
 
   const applyFilters = (
@@ -93,6 +103,7 @@ export default function EmployeeLeaveSummary() {
     setNameFilter("");
     setDateFromFilter("");
     setDateToFilter("");
+    setLeaveTypeFilter("all-types");
     setFilteredEmployees(employees);
   };
 
@@ -100,6 +111,11 @@ export default function EmployeeLeaveSummary() {
     const allLeaveRequests = storage.getLeaveRequests();
     
     let filteredLeaves = allLeaveRequests.filter(r => r.employeeId === employee.id && r.status === "Approved");
+    
+    // Filter by leave type
+    if (leaveTypeFilter !== "all-types") {
+      filteredLeaves = filteredLeaves.filter(leave => leave.leaveTypeId === leaveTypeFilter);
+    }
     
     if (dateFromFilter || dateToFilter) {
       filteredLeaves = filteredLeaves.filter(leave => {
@@ -124,6 +140,11 @@ export default function EmployeeLeaveSummary() {
     }
 
     const totalDays = filteredLeaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
+    
+    // Get selected leave type name
+    const selectedLeaveType = leaveTypeFilter !== "all-types" 
+      ? leaveTypes.find(t => t.id === leaveTypeFilter)?.name || "All Leave Types"
+      : "All Leave Types";
     
     // Generate descriptive title for what we're downloading
     const dateRange = filteredLeaves.length > 0 
@@ -164,27 +185,30 @@ export default function EmployeeLeaveSummary() {
 
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
-      doc.text(`Name: ${employee.name}`, 15, yPosition);
-      yPosition += 5;
-      doc.text(`Designation: ${employee.designation}`, 15, yPosition);
-      yPosition += 5;
-      doc.text(`Department: ${employee.department}`, 15, yPosition);
-      yPosition += 5;
-      doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
-      yPosition += 5;
       
-      // Report Period - always show
+      // Report Period and Type text
       const fromText = dateFromFilter ? format(new Date(dateFromFilter), "MMM d, yyyy") : "All Dates";
       const toText = dateToFilter ? format(new Date(dateToFilter), "MMM d, yyyy") : "All Dates";
       const periodText = (dateFromFilter || dateToFilter) 
         ? `${fromText} to ${toText}` 
         : "All Dates";
-      doc.text(`Report Period: ${periodText}`, 15, yPosition);
-      yPosition += 5;
       
-      // Report Type - show all leave types since no filter applied
-      doc.text(`Report Type: All Leave Types`, 15, yPosition);
-      yPosition += 10;
+      // Two column layout - Left column (3 items)
+      const leftX = 15;
+      const rightX = pageWidth / 2 + 10;
+      const infoStartY = yPosition;
+      
+      // Left column
+      doc.text(`Name: ${employee.name}`, leftX, infoStartY);
+      doc.text(`Designation: ${employee.designation}`, leftX, infoStartY + 6);
+      doc.text(`Section: ${employee.department}`, leftX, infoStartY + 12);
+      
+      // Right column
+      doc.text(`Generated: ${format(new Date(), "PPP p")}`, rightX, infoStartY);
+      doc.text(`Report Period: ${periodText}`, rightX, infoStartY + 6);
+      doc.text(`Report Type: ${selectedLeaveType}`, rightX, infoStartY + 12);
+      
+      yPosition = infoStartY + 20;
 
       // Total days box
       doc.setFont("helvetica", "bold");
@@ -262,13 +286,13 @@ export default function EmployeeLeaveSummary() {
       <div className="bg-card rounded-xl border shadow-sm p-4 space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Filters</h3>
-          {(nameFilter || dateFromFilter || dateToFilter) && (
+          {(nameFilter || dateFromFilter || dateToFilter || leaveTypeFilter !== "all-types") && (
             <Button variant="ghost" size="sm" onClick={handleClearFilters}>
               <X className="h-4 w-4 mr-2" /> Clear Filters
             </Button>
           )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Employee Name</label>
             <Input
@@ -276,6 +300,20 @@ export default function EmployeeLeaveSummary() {
               value={nameFilter}
               onChange={(e) => handleNameFilterChange(e.target.value)}
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Leave Type</label>
+            <Select value={leaveTypeFilter} onValueChange={setLeaveTypeFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Leave Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all-types">All Leave Types</SelectItem>
+                {leaveTypes.map(type => (
+                  <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Date From</label>
@@ -311,6 +349,11 @@ export default function EmployeeLeaveSummary() {
           <TableBody>
             {filteredEmployees.map((employee) => {
               let filteredLeaves = storage.getLeaveRequests().filter(r => r.employeeId === employee.id && r.status === "Approved");
+              
+              // Filter by leave type
+              if (leaveTypeFilter !== "all-types") {
+                filteredLeaves = filteredLeaves.filter(leave => leave.leaveTypeId === leaveTypeFilter);
+              }
               
               if (dateFromFilter || dateToFilter) {
                 filteredLeaves = filteredLeaves.filter(leave => {
