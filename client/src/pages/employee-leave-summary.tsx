@@ -68,7 +68,7 @@ export default function EmployeeLeaveSummary() {
         if (leaves.length === 0) return false;
 
         const fromDate = dateFrom ? new Date(dateFrom) : null;
-        const toDate = dateToFilter ? new Date(dateToFilter) : null;
+        const toDate = dateTo ? new Date(dateTo) : null;
 
         return leaves.some((leave) => {
           const leaveStart = new Date(leave.startDate);
@@ -235,13 +235,14 @@ export default function EmployeeLeaveSummary() {
 
       leaveTypeMap.forEach((leaves, leaveType) => {
         const typeDays = leaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
+        const sortedLeaves = [...leaves].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
         doc.setFont("helvetica", "bold");
         doc.text(`${leaveType}: ${typeDays} days`, 15, yPosition);
         yPosition += 6;
 
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
-        leaves.forEach((leave) => {
+        sortedLeaves.forEach((leave) => {
           if (yPosition > pageHeight - 20) {
             doc.addPage();
             yPosition = 15;
@@ -445,22 +446,25 @@ export default function EmployeeLeaveSummary() {
                                       leaveTypeMap.get(leave.leaveTypeName)!.push(leave);
                                     });
                                     
-                                    return Array.from(leaveTypeMap).map(([leaveType, leaves]) => (
-                                      <div key={leaveType} className="border rounded-lg p-3">
-                                        <div className="flex justify-between items-center mb-2">
-                                          <h5 className="font-medium">{leaveType}</h5>
-                                          <span className="text-sm font-bold text-primary">{leaves.reduce((acc, l) => acc + l.approvedDays, 0)} days</span>
+                                    return Array.from(leaveTypeMap).map(([leaveType, leaves]) => {
+                                      const sortedLeaves = [...leaves].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+                                      return (
+                                        <div key={leaveType} className="border rounded-lg p-3">
+                                          <div className="flex justify-between items-center mb-2">
+                                            <h5 className="font-medium">{leaveType}</h5>
+                                            <span className="text-sm font-bold text-primary">{leaves.reduce((acc, l) => acc + l.approvedDays, 0)} days</span>
+                                          </div>
+                                          <div className="space-y-1">
+                                            {sortedLeaves.map((leave) => (
+                                              <div key={leave.id} className="text-sm text-muted-foreground flex justify-between">
+                                                <span>{format(new Date(leave.startDate), "MMM d")} - {format(new Date(leave.endDate), "MMM d, yyyy")}</span>
+                                                <span className="font-medium text-foreground">{leave.approvedDays}d</span>
+                                              </div>
+                                            ))}
+                                          </div>
                                         </div>
-                                        <div className="space-y-1">
-                                          {leaves.map((leave) => (
-                                            <div key={leave.id} className="text-sm text-muted-foreground flex justify-between">
-                                              <span>{format(new Date(leave.startDate), "MMM d")} - {format(new Date(leave.endDate), "MMM d, yyyy")}</span>
-                                              <span className="font-medium text-foreground">{leave.approvedDays}d</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ));
+                                      );
+                                    });
                                   })()
                                 ) : (
                                   <p className="text-sm text-muted-foreground">No leaves found in the selected date range.</p>
