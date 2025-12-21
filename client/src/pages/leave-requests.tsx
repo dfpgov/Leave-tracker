@@ -460,7 +460,7 @@ export default function LeaveRequests() {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openAddDialog} className="shadow-lg shadow-primary/20">
-              <Plus className="mr-2 h-4 w-4" /> Add Request
+              <Plus className="mr-2 h-4 w-4" /> Add New
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -488,7 +488,7 @@ export default function LeaveRequests() {
                             className="pl-9"
                           />
                           {showEmployeeDropdown && filteredEmployees.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 bg-white border border-input rounded-md shadow-md z-50 mt-1">
+                            <div className="absolute top-full left-0 right-0 bg-white border border-input rounded-md shadow-md z-50 mt-1 max-h-48 overflow-y-auto">
                               {filteredEmployees.map(emp => (
                                 <div
                                   key={emp.id}
