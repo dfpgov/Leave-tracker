@@ -58,6 +58,7 @@ export default function LeaveTypes() {
       id: Math.random().toString(36).substr(2, 9),
       name: values.name,
       maxDays: values.maxDays ? parseInt(values.maxDays) : null,
+      doneBy: storage.getCurrentUserId(),
     };
 
     storage.saveLeaveType(newLeaveType);
@@ -70,7 +71,15 @@ export default function LeaveTypes() {
     });
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: string, name: string) => {
+    if (name === "Casual Leave") {
+      toast({
+        title: "Cannot Delete",
+        description: "Casual Leave is a permanent leave type and cannot be deleted.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (confirm("Delete this leave type?")) {
       storage.deleteLeaveType(id);
       setLeaveTypes(storage.getLeaveTypes());
@@ -153,9 +162,11 @@ export default function LeaveTypes() {
                     )}
                 </TableCell>
                 <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(type.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {type.name !== "Casual Leave" && (
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(type.id, type.name)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                 </TableCell>
                 </TableRow>
             ))}

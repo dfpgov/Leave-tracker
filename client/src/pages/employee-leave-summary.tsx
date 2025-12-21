@@ -343,6 +343,8 @@ export default function EmployeeLeaveSummary() {
               <TableHead>Designation</TableHead>
               <TableHead>Department</TableHead>
               <TableHead className="text-center">Total Leave Days</TableHead>
+              <TableHead className="text-center">Casual Used</TableHead>
+              <TableHead className="text-center">Casual Left</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -370,6 +372,18 @@ export default function EmployeeLeaveSummary() {
               
               const filteredTotalDays = filteredLeaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
               
+              // Calculate casual leave usage for current year
+              const currentYear = new Date().getFullYear();
+              const casualLeaveUsed = storage.getLeaveRequests()
+                .filter(r => 
+                  r.employeeId === employee.id && 
+                  r.status === "Approved" && 
+                  r.leaveTypeName === "Casual Leave" &&
+                  new Date(r.startDate).getFullYear() === currentYear
+                )
+                .reduce((acc, leave) => acc + leave.approvedDays, 0);
+              const casualLeaveLeft = Math.max(0, 20 - casualLeaveUsed);
+              
               return (
                 <TableRow key={employee.id}>
                   <TableCell className="font-medium">{employee.name}</TableCell>
@@ -378,6 +392,16 @@ export default function EmployeeLeaveSummary() {
                   <TableCell className="text-center">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-primary/10 text-primary">
                       {filteredTotalDays}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                      {casualLeaveUsed}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                      {casualLeaveLeft}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
