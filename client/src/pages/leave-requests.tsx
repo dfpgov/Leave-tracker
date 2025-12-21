@@ -36,10 +36,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Filter, Search, Download, X, Eye } from "lucide-react";
+import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 const requestSchema = z.object({
   employeeId: z.string().min(1, "Employee is required"),
@@ -198,10 +199,11 @@ export default function LeaveRequests() {
     const request = requests.find(r => r.id === id);
     if (!request) return;
     
-    request.status = "Approved";
-    request.updatedBy = storage.getCurrentUserId();
-    request.updatedAt = new Date().toISOString();
-    storage.saveLeaveRequest(request);
+    const updatedRequest = { ...request };
+    updatedRequest.status = "Approved";
+    updatedRequest.updatedBy = storage.getCurrentUserId();
+    updatedRequest.updatedAt = new Date().toISOString();
+    storage.saveLeaveRequest(updatedRequest);
     refreshData();
     toast({
       title: "Request Approved",
@@ -213,10 +215,11 @@ export default function LeaveRequests() {
     const request = requests.find(r => r.id === id);
     if (!request) return;
     
-    request.status = "Rejected";
-    request.updatedBy = storage.getCurrentUserId();
-    request.updatedAt = new Date().toISOString();
-    storage.saveLeaveRequest(request);
+    const updatedRequest = { ...request };
+    updatedRequest.status = "Rejected";
+    updatedRequest.updatedBy = storage.getCurrentUserId();
+    updatedRequest.updatedAt = new Date().toISOString();
+    storage.saveLeaveRequest(updatedRequest);
     refreshData();
     toast({
       title: "Request Rejected",
@@ -647,26 +650,28 @@ export default function LeaveRequests() {
                     <TableCell className="text-sm">{storage.getUserName(request.doneBy)}</TableCell>
                     <TableCell className="text-sm">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</TableCell>
                     <TableCell className="text-right">
-                      {currentUser?.role === 'Admin' && request.status === 'Pending' && (
+                      {currentUser?.role === 'Admin' && request.status === 'Pending' ? (
                         <div className="flex justify-end gap-2">
                           <Button 
                             size="sm" 
-                            variant="outline"
-                            className="text-green-600 hover:text-green-700"
+                            variant="ghost"
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
                             onClick={() => handleApprove(request.id)}
                           >
+                            <CheckCircle className="h-4 w-4 mr-1" />
                             Approve
                           </Button>
                           <Button 
                             size="sm" 
-                            variant="outline"
-                            className="text-red-600 hover:text-red-700"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => handleReject(request.id)}
                           >
+                            <XCircle className="h-4 w-4 mr-1" />
                             Reject
                           </Button>
                         </div>
-                      )}
+                      ) : null}
                     </TableCell>
                     </TableRow>
                 ))}

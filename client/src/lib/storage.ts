@@ -77,7 +77,7 @@ const INITIAL_HOLIDAYS: Holiday[] = [
 
 const INITIAL_USERS: User[] = [
   { id: 'ADMIN001', name: 'Admin', email: 'admin@lms.com', password: 'admin123', role: 'Admin', createdAt: new Date().toISOString() },
-  { id: 'COADMIN001', name: 'Co-Admin', email: 'coadmin@lms.com', password: 'coadmin123', role: 'CoAdmin', createdAt: new Date().toISOString() },
+  { id: 'COADMIN001', name: 'CoAdmin', email: 'coadmin@lms.com', password: 'coadmin123', role: 'CoAdmin', createdAt: new Date().toISOString() },
 ];
 
 // Storage Keys

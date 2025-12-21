@@ -110,7 +110,7 @@ export default function Login() {
             <p className="text-xs font-medium text-muted-foreground mb-2">Demo Credentials:</p>
             <div className="space-y-1 text-xs text-muted-foreground">
               <p><strong>Admin:</strong> Admin / admin123</p>
-              <p><strong>Co-Admin:</strong> Co-Admin / coadmin123</p>
+              <p><strong>CoAdmin:</strong> CoAdmin / coadmin123</p>
             </div>
           </div>
         </CardContent>
