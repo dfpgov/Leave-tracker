@@ -125,7 +125,21 @@ export const storage = {
   // Users
   getUsers: (): User[] => {
     const data = localStorage.getItem(KEYS.USERS);
-    return data ? JSON.parse(data) : INITIAL_USERS;
+    if (data) {
+      try {
+        return JSON.parse(data);
+      } catch (e) {
+        localStorage.removeItem(KEYS.USERS);
+        return INITIAL_USERS;
+      }
+    }
+    return INITIAL_USERS;
+  },
+  initializeUsers: () => {
+    const data = localStorage.getItem(KEYS.USERS);
+    if (!data) {
+      localStorage.setItem(KEYS.USERS, JSON.stringify(INITIAL_USERS));
+    }
   },
   saveUser: (user: User) => {
     const users = storage.getUsers();

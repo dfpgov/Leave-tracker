@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,11 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Initialize users on component mount
+  useEffect(() => {
+    storage.initializeUsers();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
