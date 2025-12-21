@@ -37,6 +37,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
@@ -69,6 +70,7 @@ export default function LeaveRequests() {
   const [leaveTypeFilter, setLeaveTypeFilter] = useState("all-leave-types");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const itemsPerPage = 50;
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -311,11 +313,50 @@ export default function LeaveRequests() {
     if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
       storage.deleteLeaveRequest(id);
       refreshData();
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
       toast({
         title: "Request Deleted",
         description: `Approved leave for ${request.employeeName} has been deleted.`,
       });
     }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    if (confirm(`Are you sure you want to delete ${selectedIds.size} leave request(s)?`)) {
+      selectedIds.forEach(id => storage.deleteLeaveRequest(id));
+      refreshData();
+      setSelectedIds(new Set());
+      toast({
+        title: "Requests Deleted",
+        description: `${selectedIds.size} leave request(s) have been deleted.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginatedRequests.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(paginatedRequests.map(r => r.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
   };
 
   const filteredEmployees = employees.filter(e =>
@@ -782,6 +823,11 @@ export default function LeaveRequests() {
             <Button variant="outline" size="sm" onClick={downloadPDF}>
               <Download className="mr-2 h-4 w-4" /> Download PDF
             </Button>
+            {selectedIds.size > 0 && (
+              <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedIds.size})
+              </Button>
+            )}
            </div>
            <div className="text-sm text-muted-foreground">
              Total: {filteredRequests.length}
@@ -791,6 +837,12 @@ export default function LeaveRequests() {
         <Table>
             <TableHeader>
             <TableRow className="bg-muted/30">
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={paginatedRequests.length > 0 && selectedIds.size === paginatedRequests.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Employee Name</TableHead>
                 <TableHead>Leave Type</TableHead>
                 <TableHead className="text-sm">Date Range</TableHead>
@@ -805,6 +857,12 @@ export default function LeaveRequests() {
             <TableBody>
             {paginatedRequests.map((request) => (
                 <TableRow key={request.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(request.id)}
+                        onCheckedChange={() => toggleSelect(request.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{request.employeeName}</TableCell>
                     <TableCell>
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">

@@ -36,6 +36,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -52,6 +53,7 @@ export default function Employees() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const itemsPerPage = 50;
   const { toast } = useToast();
 
@@ -123,12 +125,52 @@ export default function Employees() {
     if (confirm("Are you sure you want to delete this employee?")) {
       storage.deleteEmployee(id);
       setEmployees(storage.getEmployees());
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
       setCurrentPage(1);
       toast({
         title: "Employee Deleted",
         variant: "destructive",
       });
     }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    if (confirm(`Are you sure you want to delete ${selectedIds.size} employee(s)?`)) {
+      selectedIds.forEach(id => storage.deleteEmployee(id));
+      setEmployees(storage.getEmployees());
+      setSelectedIds(new Set());
+      setCurrentPage(1);
+      toast({
+        title: "Employees Deleted",
+        description: `${selectedIds.size} employee(s) have been deleted.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginatedEmployees.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(paginatedEmployees.map(e => e.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
   };
 
   const openAddDialog = () => {
@@ -248,13 +290,26 @@ export default function Employees() {
                 }}
              />
            </div>
-           <div className="text-sm text-muted-foreground">
-             Total Employees: {employees.length}
+           <div className="flex items-center gap-4">
+             {selectedIds.size > 0 && (
+               <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                 <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedIds.size})
+               </Button>
+             )}
+             <div className="text-sm text-muted-foreground">
+               Total Employees: {employees.length}
+             </div>
            </div>
         </div>
         <Table>
             <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={paginatedEmployees.length > 0 && selectedIds.size === paginatedEmployees.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Designation</TableHead>
                 <TableHead>Section</TableHead>
@@ -266,13 +321,19 @@ export default function Employees() {
             <TableBody>
             {paginatedEmployees.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                         {filteredEmployees.length === 0 ? "No employees found." : "No data on this page."}
                     </TableCell>
                 </TableRow>
             ) : (
                 paginatedEmployees.map((employee) => (
                     <TableRow key={employee.id} className="group">
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(employee.id)}
+                        onCheckedChange={() => toggleSelect(employee.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium text-foreground">{employee.name}</TableCell>
                     <TableCell>{employee.designation}</TableCell>
                     <TableCell>{employee.department}</TableCell>
