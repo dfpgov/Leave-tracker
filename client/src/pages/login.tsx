@@ -79,8 +79,8 @@ export default function Login() {
 
           <div className="mt-6 p-4 bg-muted/50 rounded-lg">
             <p className="text-sm text-muted-foreground text-center">
-              <strong>Admin:</strong> Can approve/reject leave requests<br/>
-              <strong>CoAdmin:</strong> Can create, edit, and delete leave requests
+              <strong>Admin:</strong> Can approve/reject approved leave<br/>
+              <strong>CoAdmin:</strong> Can create, edit, and delete approved leave
             </p>
           </div>
         </CardContent>

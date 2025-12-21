@@ -159,7 +159,7 @@ export default function LeaveRequests() {
         setIsDialogOpen(false);
         form.reset();
         toast({
-          title: "Leave Request Submitted",
+          title: "Approved Leave Submitted",
           description: "Request pending admin approval.",
         });
       };
@@ -200,7 +200,7 @@ export default function LeaveRequests() {
       form.reset();
       toast({
         title: "Request Updated",
-        description: "Leave request has been updated successfully.",
+        description: "Approved leave has been updated successfully.",
       });
     } else {
       // Create new request
@@ -209,7 +209,7 @@ export default function LeaveRequests() {
       setIsDialogOpen(false);
       form.reset();
       toast({
-        title: "Leave Request Submitted",
+        title: "Approved Leave Submitted",
         description: "Request pending admin approval.",
       });
     }
@@ -227,7 +227,7 @@ export default function LeaveRequests() {
     refreshData();
     toast({
       title: "Request Approved",
-      description: `Leave request for ${request.employeeName} has been approved.`,
+      description: `Approved leave for ${request.employeeName} has been approved.`,
     });
   };
   
@@ -243,7 +243,7 @@ export default function LeaveRequests() {
     refreshData();
     toast({
       title: "Request Rejected",
-      description: `Leave request for ${request.employeeName} has been rejected.`,
+      description: `Approved leave for ${request.employeeName} has been rejected.`,
       variant: "destructive",
     });
   };
@@ -289,12 +289,12 @@ export default function LeaveRequests() {
       return;
     }
 
-    if (confirm(`Are you sure you want to delete the leave request for ${request.employeeName}?`)) {
+    if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
       storage.deleteLeaveRequest(id);
       refreshData();
       toast({
         title: "Request Deleted",
-        description: `Leave request for ${request.employeeName} has been deleted.`,
+        description: `Approved leave for ${request.employeeName} has been deleted.`,
       });
     }
   };
@@ -332,8 +332,8 @@ export default function LeaveRequests() {
       : "";
     
     const pdfTitle = uniqueEmployees.length === 1 
-      ? `Leave requests for ${uniqueEmployees[0]} (${dateRange})`
-      : `Leave requests for ${uniqueEmployees.length} employees (${dateRange})`;
+      ? `Approved leave for ${uniqueEmployees[0]} (${dateRange})`
+      : `Approved leave for ${uniqueEmployees.length} employees (${dateRange})`;
 
     toast({
       title: "Generating PDF",
@@ -361,7 +361,7 @@ export default function LeaveRequests() {
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
-      doc.text("Leave Requests Report", pageWidth / 2, yPosition, { align: "center" });
+      doc.text("Approved Leave Report", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 8;
 
       // Generated Date
@@ -424,13 +424,13 @@ export default function LeaveRequests() {
       doc.save(`leave-requests-${format(new Date(), "yyyy-MM-dd")}.pdf`);
       toast({
         title: "PDF Downloaded",
-        description: `Leave requests report (${filteredRequests.length} records) downloaded successfully.`,
+        description: `Approved leave report (${filteredRequests.length} records) downloaded successfully.`,
       });
     } catch (error: any) {
       console.error("PDF generation error:", error?.message || error);
       toast({
         title: "PDF Ready",
-        description: `Downloaded ${filteredRequests.length} leave request records.`,
+        description: `Downloaded ${filteredRequests.length} approved leave records.`,
       });
     }
   };
@@ -453,8 +453,8 @@ export default function LeaveRequests() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold font-heading">Leave Requests</h1>
-          <p className="text-muted-foreground mt-1">Manage employee leave requests</p>
+          <h1 className="text-3xl font-bold font-heading">Approved Leave</h1>
+          <p className="text-muted-foreground mt-1">Manage employee approved leave</p>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -465,7 +465,7 @@ export default function LeaveRequests() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingId ? "Edit Leave Request" : "Add Leave Request"}</DialogTitle>
+              <DialogTitle>{editingId ? "Edit Approved Leave" : "Add Approved Leave"}</DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -641,7 +641,7 @@ export default function LeaveRequests() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Filter Leave Requests</DialogTitle>
+                  <DialogTitle>Filter Approved Leave</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>

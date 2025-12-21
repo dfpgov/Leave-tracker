@@ -87,7 +87,7 @@ export default function Dashboard() {
             <Card className="border-none overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium text-white/90">
-                      {currentUser?.role === 'Admin' ? 'Pending Leave Requests' : 'Under Pending'}
+                      {currentUser?.role === 'Admin' ? 'Pending Approved Leave' : 'Under Pending'}
                     </CardTitle>
                     <Clock className="h-4 w-4 text-white/90" />
                 </CardHeader>
