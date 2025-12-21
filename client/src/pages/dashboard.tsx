@@ -3,8 +3,8 @@ import { storage } from "@/lib/storage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { format } from "date-fns";
-import { Users, UserCheck, Clock } from "lucide-react";
+import { format, isAfter, isBefore, addDays } from "date-fns";
+import { Users, UserCheck, Clock, Calendar, CalendarDays } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function Dashboard() {
@@ -17,6 +17,7 @@ export default function Dashboard() {
   });
   const [employees, setEmployees] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [holidays, setHolidays] = useState<any[]>([]);
 
   useEffect(() => {
     const s = storage.getStats();
@@ -29,28 +30,13 @@ export default function Dashboard() {
     });
     setEmployees(storage.getEmployees());
     setRequests(allRequests);
+    setHolidays(storage.getHolidays());
   }, []);
 
-  // Compute casual leave summary
-  const getCasualLeaveSummary = (employeeId: string) => {
-    const used = requests
-      .filter(r => r.employeeId === employeeId && r.leaveTypeName === 'Casual Leave')
-      .reduce((acc, curr) => acc + curr.approvedDays, 0);
-    const limit = 20; // Hardcoded requirement
-    return { used, remaining: Math.max(0, limit - used) };
-  };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  const getTotalLeaves = (employeeId: string) => {
-      return requests
-      .filter(r => r.employeeId === employeeId)
-      .reduce((acc, curr) => acc + curr.approvedDays, 0);
-  }
-
-  // Get employees currently on leave
   const getEmployeesOnLeave = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
     const onLeave = new Set<string>();
     requests.forEach(request => {
       if (request.status === 'Approved') {
@@ -74,7 +60,33 @@ export default function Dashboard() {
       .filter(item => item.employee);
   };
 
+  const getUpcomingHolidays = () => {
+    return holidays
+      .filter(h => {
+        const holidayDate = new Date(h.date);
+        holidayDate.setHours(0, 0, 0, 0);
+        return isAfter(holidayDate, today) || holidayDate.getTime() === today.getTime();
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, 5);
+  };
+
+  const getUpcomingLeaves = () => {
+    const nextWeek = addDays(today, 7);
+    return requests
+      .filter(r => {
+        if (r.status !== 'Approved') return false;
+        const startDate = new Date(r.startDate);
+        startDate.setHours(0, 0, 0, 0);
+        return isAfter(startDate, today) && isBefore(startDate, nextWeek);
+      })
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+      .slice(0, 5);
+  };
+
   const peopleOnLeave = getEmployeesOnLeave();
+  const upcomingHolidays = getUpcomingHolidays();
+  const upcomingLeaves = getUpcomingLeaves();
 
   return (
     <div className="space-y-6">
@@ -164,6 +176,62 @@ export default function Dashboard() {
                     )}
                 </TableBody>
             </Table>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="text-lg">Upcoming Holidays</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-1">Next scheduled holidays</p>
+                    </div>
+                    <Calendar className="h-5 w-5 text-primary" />
+                </CardHeader>
+                <CardContent>
+                    {upcomingHolidays.length === 0 ? (
+                        <p className="text-center py-4 text-muted-foreground text-sm">No upcoming holidays</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {upcomingHolidays.map((holiday, index) => (
+                                <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                                    <div>
+                                        <p className="font-medium">{holiday.name}</p>
+                                        <p className="text-sm text-muted-foreground">{format(new Date(holiday.date), "EEEE")}</p>
+                                    </div>
+                                    <span className="text-sm font-medium text-primary">{format(new Date(holiday.date), "MMM d, yyyy")}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="text-lg">Upcoming Leaves</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-1">Employees on leave next 7 days</p>
+                    </div>
+                    <CalendarDays className="h-5 w-5 text-orange-500" />
+                </CardHeader>
+                <CardContent>
+                    {upcomingLeaves.length === 0 ? (
+                        <p className="text-center py-4 text-muted-foreground text-sm">No upcoming leaves</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {upcomingLeaves.map((leave, index) => (
+                                <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                                    <div>
+                                        <p className="font-medium">{leave.employeeName}</p>
+                                        <p className="text-sm text-muted-foreground">{leave.leaveTypeName} - {leave.approvedDays} days</p>
+                                    </div>
+                                    <span className="text-sm font-medium text-orange-600">{format(new Date(leave.startDate), "MMM d")}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     </div>
   );

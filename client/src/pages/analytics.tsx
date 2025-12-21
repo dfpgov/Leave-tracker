@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { storage } from "@/lib/storage";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, UserCheck, Calendar, Clock } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -9,125 +8,239 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
+  LineChart,
+  Line,
 } from "recharts";
-
-const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))'];
+import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from "date-fns";
 
 export default function Analytics() {
-  const [stats, setStats] = useState({
-    totalEmployees: 0,
-    employeesOnLeave: 0,
-    leaveTypeDistribution: {} as Record<string, number>
-  });
+  const [topLeaveTakers, setTopLeaveTakers] = useState<any[]>([]);
+  const [monthlyLeaveData, setMonthlyLeaveData] = useState<any[]>([]);
 
   useEffect(() => {
-    setStats(storage.getStats());
+    const requests = storage.getLeaveRequests().filter(r => r.status === 'Approved');
+    const employees = storage.getEmployees();
+
+    // Calculate top leave takers
+    const leaveTotals: Record<string, { name: string; days: number }> = {};
+    requests.forEach(r => {
+      if (!leaveTotals[r.employeeId]) {
+        const emp = employees.find(e => e.id === r.employeeId);
+        leaveTotals[r.employeeId] = { name: emp?.name || 'Unknown', days: 0 };
+      }
+      leaveTotals[r.employeeId].days += r.approvedDays;
+    });
+
+    const sortedLeaveTakers = Object.values(leaveTotals)
+      .sort((a, b) => b.days - a.days)
+      .slice(0, 10);
+    setTopLeaveTakers(sortedLeaveTakers);
+
+    // Calculate monthly leave trends (last 12 months)
+    const today = new Date();
+    const twelveMonthsAgo = subMonths(today, 11);
+    const months = eachMonthOfInterval({ start: twelveMonthsAgo, end: today });
+
+    const monthlyData = months.map(month => {
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
+      
+      const leavesInMonth = requests.filter(r => {
+        const startDate = new Date(r.startDate);
+        return startDate >= monthStart && startDate <= monthEnd;
+      });
+
+      const totalDays = leavesInMonth.reduce((acc, r) => acc + r.approvedDays, 0);
+      const uniqueEmployees = new Set(leavesInMonth.map(r => r.employeeId)).size;
+
+      return {
+        month: format(month, "MMM yyyy"),
+        shortMonth: format(month, "MMM"),
+        totalDays,
+        employees: uniqueEmployees,
+        requests: leavesInMonth.length
+      };
+    });
+
+    setMonthlyLeaveData(monthlyData);
   }, []);
 
-  const pieData = Object.entries(stats.leaveTypeDistribution).map(([name, value]) => ({
-    name,
-    value
-  }));
+  // Find peak month
+  const peakMonth = monthlyLeaveData.reduce((max, curr) => 
+    curr.totalDays > (max?.totalDays || 0) ? curr : max, 
+    monthlyLeaveData[0]
+  );
 
   return (
     <div className="space-y-6">
         <div>
-            <h1 className="text-3xl font-bold font-heading">Analytics Dashboard</h1>
-            <p className="text-muted-foreground mt-1">Visual insights into workforce leave trends</p>
+            <h1 className="text-3xl font-bold font-heading">Analytics</h1>
+            <p className="text-muted-foreground mt-1">Leave trends and insights</p>
         </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-sm border-primary/20 bg-primary/5">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{stats.totalEmployees}</div>
-            <p className="text-xs text-muted-foreground">Active workforce</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Currently on Leave</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.employeesOnLeave}</div>
-            <p className="text-xs text-muted-foreground">Absent today</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Upcoming Holidays</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{storage.getHolidays().length}</div>
-            <p className="text-xs text-muted-foreground">Scheduled this year</p>
-          </CardContent>
-        </Card>
-         <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Requiring approval</p>
-          </CardContent>
-        </Card>
-      </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="shadow-sm">
+                <CardHeader>
+                    <CardTitle>Top Leave Takers</CardTitle>
+                    <CardDescription>Employees with highest leave days taken</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-[350px]">
+                        {topLeaveTakers.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-muted-foreground">
+                                No leave data available
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={topLeaveTakers}
+                                    layout="vertical"
+                                    margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                                    <XAxis type="number" />
+                                    <YAxis 
+                                        type="category" 
+                                        dataKey="name" 
+                                        tick={{ fontSize: 12 }}
+                                        width={80}
+                                    />
+                                    <Tooltip 
+                                        formatter={(value: number) => [`${value} days`, 'Total Leave']}
+                                        contentStyle={{ 
+                                            backgroundColor: 'hsl(var(--card))', 
+                                            border: '1px solid hsl(var(--border))',
+                                            borderRadius: '8px'
+                                        }}
+                                    />
+                                    <Bar 
+                                        dataKey="days" 
+                                        fill="hsl(var(--primary))" 
+                                        radius={[0, 4, 4, 0]}
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Leave Type Distribution</CardTitle>
-            <CardDescription>Breakdown of leaves taken by category</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-        
+            <Card className="shadow-sm">
+                <CardHeader>
+                    <CardTitle>Monthly Leave Trends</CardTitle>
+                    <CardDescription>
+                        Leave days taken per month (Last 12 months)
+                        {peakMonth && peakMonth.totalDays > 0 && (
+                            <span className="block mt-1 text-primary font-medium">
+                                Peak: {peakMonth.month} ({peakMonth.totalDays} days)
+                            </span>
+                        )}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-[350px]">
+                        {monthlyLeaveData.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-muted-foreground">
+                                No leave data available
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart
+                                    data={monthlyLeaveData}
+                                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis 
+                                        dataKey="shortMonth" 
+                                        tick={{ fontSize: 11 }}
+                                    />
+                                    <YAxis />
+                                    <Tooltip 
+                                        formatter={(value: number, name: string) => [
+                                            `${value} ${name === 'totalDays' ? 'days' : name === 'employees' ? 'employees' : 'requests'}`,
+                                            name === 'totalDays' ? 'Leave Days' : name === 'employees' ? 'Employees' : 'Requests'
+                                        ]}
+                                        labelFormatter={(label) => {
+                                            const item = monthlyLeaveData.find(d => d.shortMonth === label);
+                                            return item?.month || label;
+                                        }}
+                                        contentStyle={{ 
+                                            backgroundColor: 'hsl(var(--card))', 
+                                            border: '1px solid hsl(var(--border))',
+                                            borderRadius: '8px'
+                                        }}
+                                    />
+                                    <Line 
+                                        type="monotone" 
+                                        dataKey="totalDays" 
+                                        stroke="hsl(var(--primary))" 
+                                        strokeWidth={2}
+                                        dot={{ fill: 'hsl(var(--primary))' }}
+                                        name="Leave Days"
+                                    />
+                                    <Line 
+                                        type="monotone" 
+                                        dataKey="employees" 
+                                        stroke="hsl(var(--chart-2))" 
+                                        strokeWidth={2}
+                                        dot={{ fill: 'hsl(var(--chart-2))' }}
+                                        name="Employees"
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
         <Card className="shadow-sm">
             <CardHeader>
-                <CardTitle>Department Leave Trends</CardTitle>
-                <CardDescription>Leaves taken across departments</CardDescription>
+                <CardTitle>Leave Requests by Month</CardTitle>
+                <CardDescription>Number of leave requests submitted each month</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    Placeholder for Department Chart
-                    {/* Requires aggregating data by department which is complex in this simple mock storage */}
+                <div className="h-[300px]">
+                    {monthlyLeaveData.length === 0 ? (
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                            No leave data available
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                                data={monthlyLeaveData}
+                                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis 
+                                    dataKey="shortMonth" 
+                                    tick={{ fontSize: 11 }}
+                                />
+                                <YAxis />
+                                <Tooltip 
+                                    formatter={(value: number) => [`${value} requests`, 'Leave Requests']}
+                                    labelFormatter={(label) => {
+                                        const item = monthlyLeaveData.find(d => d.shortMonth === label);
+                                        return item?.month || label;
+                                    }}
+                                    contentStyle={{ 
+                                        backgroundColor: 'hsl(var(--card))', 
+                                        border: '1px solid hsl(var(--border))',
+                                        borderRadius: '8px'
+                                    }}
+                                />
+                                <Bar 
+                                    dataKey="requests" 
+                                    fill="hsl(var(--chart-3))" 
+                                    radius={[4, 4, 0, 0]}
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    )}
                 </div>
             </CardContent>
         </Card>
-      </div>
     </div>
   );
 }
