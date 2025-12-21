@@ -46,7 +46,7 @@ export default function Layout({ children }: LayoutProps) {
     { label: "Employees", icon: Users, href: "/employees" },
     { label: "Holidays", icon: CalendarDays, href: "/holidays" },
     { label: "Leave Types", icon: Settings2, href: "/leave-types" },
-    { label: "Leave Requests", icon: FileText, href: "/leave-requests" },
+    { label: "Approved Leave", icon: FileText, href: "/leave-requests" },
     { label: "Leave Summary", icon: UserCheck, href: "/employee-leave-summary" },
     { label: "Analytics", icon: BarChart3, href: "/analytics" },
     ...(currentUser?.role === 'Admin' ? [{ label: "Users", icon: Shield, href: "/users" }] : []),

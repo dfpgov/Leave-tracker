@@ -9,6 +9,7 @@ import { useLocation } from "wouter";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
+  const currentUser = storage.getCurrentUser();
   const [stats, setStats] = useState({
     totalEmployees: 0,
     employeesOnLeave: 0,
@@ -85,18 +86,22 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="border-none overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-white/90">Pending Leave Requests</CardTitle>
+                    <CardTitle className="text-sm font-medium text-white/90">
+                      {currentUser?.role === 'Admin' ? 'Pending Leave Requests' : 'Under Pending'}
+                    </CardTitle>
                     <Clock className="h-4 w-4 text-white/90" />
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <div className="text-5xl font-bold text-white">{stats.pendingLeaves}</div>
-                    <Button 
-                      onClick={() => setLocation('/leave-requests')}
-                      className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm"
-                      variant="ghost"
-                    >
-                      Clear All Pending
-                    </Button>
+                    {currentUser?.role === 'Admin' && (
+                      <Button 
+                        onClick={() => setLocation('/leave-requests')}
+                        className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm"
+                        variant="ghost"
+                      >
+                        Clear All Pending
+                      </Button>
+                    )}
                 </CardContent>
             </Card>
             <Card className="border-none overflow-hidden" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)' }}>
