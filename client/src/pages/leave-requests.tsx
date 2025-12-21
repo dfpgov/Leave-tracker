@@ -270,15 +270,6 @@ export default function LeaveRequests() {
   };
 
   const handleEdit = (request: LeaveRequest) => {
-    if (request.status !== "Pending") {
-      toast({
-        title: "Cannot Edit",
-        description: "Only pending requests can be edited.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     const employee = employees.find(e => e.id === request.employeeId);
     const leaveType = leaveTypes.find(t => t.id === request.leaveTypeId);
     
@@ -300,15 +291,6 @@ export default function LeaveRequests() {
   const handleDelete = (id: string) => {
     const request = requests.find(r => r.id === id);
     if (!request) return;
-
-    if (request.status !== "Pending") {
-      toast({
-        title: "Cannot Delete",
-        description: "Only pending requests can be deleted.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
       storage.deleteLeaveRequest(id);
@@ -1030,26 +1012,28 @@ export default function LeaveRequests() {
                             </div>
                           </DialogContent>
                         </Dialog>
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          title="Edit Request"
-                          disabled={request.status !== 'Pending'}
-                          onClick={() => handleEdit(request)}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleDelete(request.id)}
-                          title="Delete Request"
-                          disabled={request.status !== 'Pending'}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {currentUser?.role === 'Admin' && (
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="Edit Request"
+                            onClick={() => handleEdit(request)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {currentUser?.role === 'Admin' && (
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDelete(request.id)}
+                            title="Delete Request"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                     </TableRow>
