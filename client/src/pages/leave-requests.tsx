@@ -256,17 +256,38 @@ export default function LeaveRequests() {
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       let yPosition = 15;
 
+      // Department Header
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("Department of Films & Publications", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 7;
+
+      // Address
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text("112 Circuit House Rd, Dhaka 1205", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 12;
+
+      // Report Title
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.text("Leave Requests Report", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 10;
 
+      // Generated Date
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
+      doc.text(`Total Records: ${filteredRequests.length}`, pageWidth - 15, yPosition, { align: "right" });
       yPosition += 8;
+
+      // Add separator line
+      doc.setDrawColor(200);
+      doc.line(15, yPosition, pageWidth - 15, yPosition);
+      yPosition += 5;
 
       const tableData = filteredRequests.map(r => [
         r.employeeName,
@@ -283,17 +304,19 @@ export default function LeaveRequests() {
         body: tableData,
         theme: "grid",
         styles: { fontSize: 9 },
+        margin: { left: 15, right: 15 },
       });
 
-      doc.save("leave-requests.pdf");
+      doc.save(`leave-requests-${format(new Date(), "yyyy-MM-dd")}.pdf`);
       toast({
         title: "PDF Downloaded",
         description: `Leave requests report (${filteredRequests.length} records) downloaded successfully.`,
       });
     } catch (error) {
+      console.error("PDF generation error:", error);
       toast({
         title: "Error",
-        description: "Failed to generate PDF.",
+        description: "Failed to generate PDF. Please try again.",
         variant: "destructive",
       });
     }
