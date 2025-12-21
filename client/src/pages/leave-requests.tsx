@@ -46,7 +46,7 @@ const requestSchema = z.object({
   leaveTypeId: z.string().min(1, "Leave type is required"),
   startDate: z.string().min(1, "Start date is required"),
   endDate: z.string().min(1, "End date is required"),
-  approvedDays: z.string().min(1, "Approved days is required"),
+  requestedDays: z.string().min(1, "Number of days is required"),
   comments: z.string().optional(),
   attachment: z.any().optional(),
 });
@@ -65,6 +65,7 @@ export default function LeaveRequests() {
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ base64: string; name: string } | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [statusFilter, setStatusFilter] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -99,20 +100,19 @@ export default function LeaveRequests() {
 
     if (!employee || !leaveType) return;
 
-    const approvedDaysNum = parseInt(values.approvedDays);
+    const requestedDaysNum = parseInt(values.requestedDays);
     
     if (leaveType.name === "Casual Leave" && leaveType.maxDays) {
        const usedDays = requests
          .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved')
          .reduce((acc, curr) => acc + curr.approvedDays, 0);
          
-       if (usedDays + approvedDaysNum > leaveType.maxDays) {
+       if (usedDays + requestedDaysNum > leaveType.maxDays) {
          toast({
-           title: "Limit Exceeded",
-           description: `Cannot approve request. ${employee.name} has already used ${usedDays} Casual Leave days. Limit is ${leaveType.maxDays}.`,
-           variant: "destructive"
+           title: "Note",
+           description: `${employee.name} has already used ${usedDays} Casual Leave days. Limit is ${leaveType.maxDays}. Request submitted for approval.`,
+           variant: "default"
          });
-         return;
        }
     }
 
@@ -143,14 +143,13 @@ export default function LeaveRequests() {
           leaveTypeName: leaveType.name,
           startDate: values.startDate,
           endDate: values.endDate,
-          approvedDays: approvedDaysNum,
+          approvedDays: requestedDaysNum,
           comments: values.comments || "",
-          status: "Approved", 
+          status: "Pending",
           timestamp: new Date().toISOString(),
           attachmentFileName: attachmentFile.name,
           attachmentBase64: base64,
           doneBy: storage.getCurrentUserId(),
-          updatedBy: storage.getCurrentUserId(),
           updatedAt: new Date().toISOString(),
         };
         storage.saveLeaveRequest(newReq);
@@ -158,8 +157,8 @@ export default function LeaveRequests() {
         setIsDialogOpen(false);
         form.reset();
         toast({
-          title: "Leave Request Logged",
-          description: "Request added successfully.",
+          title: "Leave Request Submitted",
+          description: "Request pending admin approval.",
         });
       };
       reader.readAsDataURL(attachmentFile);
@@ -176,13 +175,12 @@ export default function LeaveRequests() {
       leaveTypeName: leaveType.name,
       startDate: values.startDate,
       endDate: values.endDate,
-      approvedDays: approvedDaysNum,
+      approvedDays: requestedDaysNum,
       comments: values.comments || "",
-      status: "Approved", 
+      status: "Pending",
       timestamp: new Date().toISOString(),
       attachmentFileName: attachmentFile?.name,
       doneBy: storage.getCurrentUserId(),
-      updatedBy: storage.getCurrentUserId(),
       updatedAt: new Date().toISOString(),
     };
 
@@ -191,8 +189,39 @@ export default function LeaveRequests() {
     setIsDialogOpen(false);
     form.reset();
     toast({
-      title: "Leave Request Logged",
-      description: "Request added successfully.",
+      title: "Leave Request Submitted",
+      description: "Request pending admin approval.",
+    });
+  };
+  
+  const handleApprove = (id: string) => {
+    const request = requests.find(r => r.id === id);
+    if (!request) return;
+    
+    request.status = "Approved";
+    request.updatedBy = storage.getCurrentUserId();
+    request.updatedAt = new Date().toISOString();
+    storage.saveLeaveRequest(request);
+    refreshData();
+    toast({
+      title: "Request Approved",
+      description: `Leave request for ${request.employeeName} has been approved.`,
+    });
+  };
+  
+  const handleReject = (id: string) => {
+    const request = requests.find(r => r.id === id);
+    if (!request) return;
+    
+    request.status = "Rejected";
+    request.updatedBy = storage.getCurrentUserId();
+    request.updatedAt = new Date().toISOString();
+    storage.saveLeaveRequest(request);
+    refreshData();
+    toast({
+      title: "Request Rejected",
+      description: `Leave request for ${request.employeeName} has been rejected.`,
+      variant: "destructive",
     });
   };
 
@@ -206,8 +235,9 @@ export default function LeaveRequests() {
     const matchesEmployee = !employeeFilterId || request.employeeId === employeeFilterId;
     const matchesStartDate = !startDateFilter || new Date(request.startDate) >= new Date(startDateFilter);
     const matchesEndDate = !endDateFilter || new Date(request.endDate) <= new Date(endDateFilter);
+    const matchesStatus = !statusFilter || request.status === statusFilter;
     
-    return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate;
+    return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate && matchesStatus;
   });
 
   const downloadPDF = () => {
@@ -263,7 +293,7 @@ export default function LeaveRequests() {
       leaveTypeId: "",
       startDate: "",
       endDate: "",
-      approvedDays: "",
+      requestedDays: "",
       comments: "",
     });
     setIsDialogOpen(true);
@@ -388,12 +418,12 @@ export default function LeaveRequests() {
 
                 <FormField
                   control={form.control}
-                  name="approvedDays"
+                  name="requestedDays"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Approved Days</FormLabel>
+                      <FormLabel>Number of Days</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="Enter number of approved days" min="1" {...field} />
+                        <Input type="number" placeholder="Enter number of days" min="1" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -432,7 +462,7 @@ export default function LeaveRequests() {
                 />
 
                 <Button type="submit" className="w-full">
-                  Add Request
+                  Submit Request
                 </Button>
               </form>
             </Form>
@@ -482,6 +512,21 @@ export default function LeaveRequests() {
                   </div>
 
                   <div>
+                    <label className="text-sm font-medium">Status</label>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue placeholder="All statuses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All Statuses</SelectItem>
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="Approved">Approved</SelectItem>
+                        <SelectItem value="Rejected">Rejected</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
                     <label className="text-sm font-medium">Start Date From</label>
                     <Input 
                       type="date"
@@ -507,6 +552,7 @@ export default function LeaveRequests() {
                       className="flex-1"
                       onClick={() => {
                         setEmployeeFilterId("");
+                        setStatusFilter("");
                         setStartDateFilter("");
                         setEndDateFilter("");
                       }}
@@ -541,6 +587,7 @@ export default function LeaveRequests() {
                 <TableHead>Comments</TableHead>
                 <TableHead>Done By</TableHead>
                 <TableHead>Updated By</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
             </TableRow>
             </TableHeader>
             <TableBody>
@@ -590,6 +637,28 @@ export default function LeaveRequests() {
                     </TableCell>
                     <TableCell className="text-sm">{storage.getUserName(request.doneBy)}</TableCell>
                     <TableCell className="text-sm">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</TableCell>
+                    <TableCell className="text-right">
+                      {currentUser?.role === 'Admin' && request.status === 'Pending' && (
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="text-green-600 hover:text-green-700"
+                            onClick={() => handleApprove(request.id)}
+                          >
+                            Approve
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleReject(request.id)}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
                     </TableRow>
                 ))}
             </TableBody>
