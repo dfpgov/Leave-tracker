@@ -895,31 +895,7 @@ export default function LeaveRequests() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm max-w-[200px]">
-                        <div className="flex items-center gap-2">
-                            <span className="truncate" title={request.comments}>{request.comments || "-"}</span>
-                            {request.attachmentBase64 && (
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-5 w-5"
-                                  >
-                                    <Eye className="h-3 w-3 text-primary" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-2xl">
-                                  <DialogHeader>
-                                    <DialogTitle>{request.attachmentFileName}</DialogTitle>
-                                  </DialogHeader>
-                                  <div className="space-y-4">
-                                    <img src={request.attachmentBase64} alt={request.attachmentFileName} className="w-full max-h-96 object-contain rounded-lg" />
-                                    <p className="text-sm text-muted-foreground">Attached by {request.employeeName}</p>
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-                            )}
-                        </div>
+                        <span className="truncate block" title={request.comments}>{request.comments || "-"}</span>
                     </TableCell>
                     <TableCell className="text-sm">{storage.getUserName(request.doneBy)}</TableCell>
                     <TableCell className="text-sm">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</TableCell>
@@ -936,7 +912,7 @@ export default function LeaveRequests() {
                               <Eye className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
+                          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle>Leave Request Details</DialogTitle>
                             </DialogHeader>

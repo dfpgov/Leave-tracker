@@ -278,16 +278,14 @@ export default function Analytics() {
                                         dot={{ fill: 'hsl(var(--primary))' }}
                                         name="Leave Days"
                                     />
-                                    {selectedEmployee === "all" && (
-                                        <Line 
-                                            type="monotone" 
-                                            dataKey="employees" 
-                                            stroke="hsl(var(--chart-2))" 
-                                            strokeWidth={2}
-                                            dot={{ fill: 'hsl(var(--chart-2))' }}
-                                            name="Employees"
-                                        />
-                                    )}
+                                    <Line 
+                                        type="monotone" 
+                                        dataKey="requests" 
+                                        stroke="hsl(var(--chart-2))" 
+                                        strokeWidth={2}
+                                        dot={{ fill: 'hsl(var(--chart-2))' }}
+                                        name="Requests"
+                                    />
                                 </LineChart>
                             </ResponsiveContainer>
                         )}
