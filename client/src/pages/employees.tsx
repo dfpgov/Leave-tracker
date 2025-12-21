@@ -66,13 +66,13 @@ export default function Employees() {
   });
 
   useEffect(() => {
-    setEmployees(storage.getEmployees());
+    setEmployees(storage.getEmployees().sort((a, b) => a.name.localeCompare(b.name)));
   }, []);
 
   const filteredEmployees = employees.filter((e) =>
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     e.designation.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ).sort((a, b) => a.name.localeCompare(b.name));
 
   // Pagination logic
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
@@ -261,7 +261,6 @@ export default function Employees() {
         <Table>
             <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableHead>Employee ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Designation</TableHead>
                 <TableHead>Section</TableHead>
@@ -273,14 +272,13 @@ export default function Employees() {
             <TableBody>
             {paginatedEmployees.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                         {filteredEmployees.length === 0 ? "No employees found." : "No data on this page."}
                     </TableCell>
                 </TableRow>
             ) : (
                 paginatedEmployees.map((employee) => (
                     <TableRow key={employee.id} className="group">
-                    <TableCell className="font-mono text-xs text-muted-foreground">{employee.id}</TableCell>
                     <TableCell className="font-medium text-foreground">{employee.name}</TableCell>
                     <TableCell>{employee.designation}</TableCell>
                     <TableCell>{employee.department}</TableCell>

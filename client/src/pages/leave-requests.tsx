@@ -313,7 +313,7 @@ export default function LeaveRequests() {
     const matchesLeaveType = leaveTypeFilter === "all-leave-types" || request.leaveTypeId === leaveTypeFilter;
     
     return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate && matchesStatus && matchesLeaveType;
-  });
+  }).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
   const downloadPDF = () => {
     if (filteredRequests.length === 0) {
