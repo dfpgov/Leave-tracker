@@ -66,6 +66,7 @@ export default function LeaveRequests() {
   const [selectedImage, setSelectedImage] = useState<{ base64: string; name: string } | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [statusFilter, setStatusFilter] = useState("all-statuses");
+  const [leaveTypeFilter, setLeaveTypeFilter] = useState("all-leave-types");
   const [editingId, setEditingId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -309,8 +310,9 @@ export default function LeaveRequests() {
     const matchesStartDate = !startDateFilter || new Date(request.startDate) >= new Date(startDateFilter);
     const matchesEndDate = !endDateFilter || new Date(request.endDate) <= new Date(endDateFilter);
     const matchesStatus = statusFilter === "all-statuses" || request.status === statusFilter;
+    const matchesLeaveType = leaveTypeFilter === "all-leave-types" || request.leaveTypeId === leaveTypeFilter;
     
-    return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate && matchesStatus;
+    return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate && matchesStatus && matchesLeaveType;
   });
 
   const downloadPDF = () => {
@@ -675,6 +677,23 @@ export default function LeaveRequests() {
                   </div>
 
                   <div>
+                    <label className="text-sm font-medium">Leave Type</label>
+                    <Select value={leaveTypeFilter} onValueChange={setLeaveTypeFilter}>
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue placeholder="All leave types" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all-leave-types">All Leave Types</SelectItem>
+                        {leaveTypes.map(type => (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
                     <label className="text-sm font-medium">Start Date From</label>
                     <Input 
                       type="date"
@@ -701,6 +720,7 @@ export default function LeaveRequests() {
                       onClick={() => {
                         setEmployeeFilterId("all-employees");
                         setStatusFilter("all-statuses");
+                        setLeaveTypeFilter("all-leave-types");
                         setStartDateFilter("");
                         setEndDateFilter("");
                       }}
