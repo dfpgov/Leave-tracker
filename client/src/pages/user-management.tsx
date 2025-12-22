@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Trash2, Shield } from "lucide-react";
+import { Plus, Trash2, Shield, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -49,6 +49,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof userSchema>>({
@@ -83,6 +84,9 @@ export default function UserManagement() {
   }
 
   const onSubmit = async (values: z.infer<typeof userSchema>) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
     try {
       // Hash the password before saving
       const hashResponse = await fetch('/api/hash-password', {
@@ -121,6 +125,8 @@ export default function UserManagement() {
         description: "Failed to create user. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -213,8 +219,10 @@ export default function UserManagement() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full">
-                  Create User
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                  ) : "Create User"}
                 </Button>
               </form>
             </Form>

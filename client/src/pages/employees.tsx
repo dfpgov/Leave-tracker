@@ -35,7 +35,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -54,6 +54,7 @@ export default function Employees() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const itemsPerPage = 50;
   const { toast } = useToast();
 
@@ -94,24 +95,31 @@ export default function Employees() {
   };
 
   const onSubmit = async (values: z.infer<typeof employeeSchema>) => {
-    const newEmployee: Employee = {
-      id: editingEmployee ? editingEmployee.id : firebaseService.generateEmployeeId(),
-      ...values,
-      lastEdited: new Date().toISOString(),
-      doneBy: firebaseService.getCurrentUserId(),
-    };
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
+    try {
+      const newEmployee: Employee = {
+        id: editingEmployee ? editingEmployee.id : firebaseService.generateEmployeeId(),
+        ...values,
+        lastEdited: new Date().toISOString(),
+        doneBy: firebaseService.getCurrentUserId(),
+      };
 
-    await firebaseService.saveEmployee(newEmployee);
-    const data = await firebaseService.getEmployees();
-    setEmployees(data.sort((a, b) => a.name.localeCompare(b.name)));
-    setIsDialogOpen(false);
-    setEditingEmployee(null);
-    form.reset();
-    setCurrentPage(1);
-    toast({
-      title: editingEmployee ? "Employee Updated" : "Employee Added",
-      description: `${values.name} has been ${editingEmployee ? "updated" : "added"} successfully.`,
-    });
+      await firebaseService.saveEmployee(newEmployee);
+      const data = await firebaseService.getEmployees();
+      setEmployees(data.sort((a, b) => a.name.localeCompare(b.name)));
+      setIsDialogOpen(false);
+      setEditingEmployee(null);
+      form.reset();
+      setCurrentPage(1);
+      toast({
+        title: editingEmployee ? "Employee Updated" : "Employee Added",
+        description: `${values.name} has been ${editingEmployee ? "updated" : "added"} successfully.`,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEdit = (employee: Employee) => {
@@ -273,8 +281,12 @@ export default function Employees() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full">
-                  {editingEmployee ? "Update Employee" : "Save Employee"}
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                  ) : (
+                    editingEmployee ? "Update Employee" : "Save Employee"
+                  )}
                 </Button>
               </form>
             </Form>

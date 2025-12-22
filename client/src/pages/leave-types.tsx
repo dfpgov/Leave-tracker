@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const leaveTypeSchema = z.object({
@@ -39,6 +39,7 @@ const leaveTypeSchema = z.object({
 export default function LeaveTypes() {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof leaveTypeSchema>>({
@@ -58,22 +59,29 @@ export default function LeaveTypes() {
   }, []);
 
   const onSubmit = async (values: z.infer<typeof leaveTypeSchema>) => {
-    const newLeaveType: LeaveType = {
-      id: firebaseService.generateLeaveTypeId(),
-      name: values.name,
-      maxDays: values.maxDays ? parseInt(values.maxDays) : null,
-      doneBy: firebaseService.getCurrentUserId(),
-    };
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
+    try {
+      const newLeaveType: LeaveType = {
+        id: firebaseService.generateLeaveTypeId(),
+        name: values.name,
+        maxDays: values.maxDays ? parseInt(values.maxDays) : null,
+        doneBy: firebaseService.getCurrentUserId(),
+      };
 
-    await firebaseService.saveLeaveType(newLeaveType);
-    const data = await firebaseService.getLeaveTypes();
-    setLeaveTypes(data);
-    setIsDialogOpen(false);
-    form.reset();
-    toast({
-      title: "Leave Type Added",
-      description: `${values.name} added successfully.`,
-    });
+      await firebaseService.saveLeaveType(newLeaveType);
+      const data = await firebaseService.getLeaveTypes();
+      setLeaveTypes(data);
+      setIsDialogOpen(false);
+      form.reset();
+      toast({
+        title: "Leave Type Added",
+        description: `${values.name} added successfully.`,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -138,7 +146,11 @@ export default function LeaveTypes() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full">Save Leave Type</Button>
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                  ) : "Save Leave Type"}
+                </Button>
               </form>
             </Form>
           </DialogContent>

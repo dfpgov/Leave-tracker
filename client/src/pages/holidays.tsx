@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -41,6 +41,7 @@ const holidaySchema = z.object({
 export default function Holidays() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof holidaySchema>>({
@@ -61,24 +62,31 @@ export default function Holidays() {
   }, []);
 
   const onSubmit = async (values: z.infer<typeof holidaySchema>) => {
-    const totalDays = calculateDays(values.startDate, values.endDate);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     
-    const newHoliday: Holiday = {
-      id: firebaseService.generateHolidayId(),
-      ...values,
-      totalDays,
-      doneBy: firebaseService.getCurrentUserId(),
-    };
+    try {
+      const totalDays = calculateDays(values.startDate, values.endDate);
+      
+      const newHoliday: Holiday = {
+        id: firebaseService.generateHolidayId(),
+        ...values,
+        totalDays,
+        doneBy: firebaseService.getCurrentUserId(),
+      };
 
-    await firebaseService.saveHoliday(newHoliday);
-    const data = await firebaseService.getHolidays();
-    setHolidays(data);
-    setIsDialogOpen(false);
-    form.reset();
-    toast({
-      title: "Holiday Added",
-      description: `${values.name} added successfully.`,
-    });
+      await firebaseService.saveHoliday(newHoliday);
+      const data = await firebaseService.getHolidays();
+      setHolidays(data);
+      setIsDialogOpen(false);
+      form.reset();
+      toast({
+        title: "Holiday Added",
+        description: `${values.name} added successfully.`,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -150,7 +158,11 @@ export default function Holidays() {
                     )}
                     />
                 </div>
-                <Button type="submit" className="w-full">Save Holiday</Button>
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                  ) : "Save Holiday"}
+                </Button>
               </form>
             </Form>
           </DialogContent>
