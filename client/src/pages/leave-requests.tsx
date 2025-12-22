@@ -433,7 +433,25 @@ export default function LeaveRequests() {
       doc.setFont("helvetica", "normal");
       doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
       doc.text(`Total Records: ${filteredRequests.length}`, pageWidth - 15, yPosition, { align: "right" });
-      yPosition += 8;
+      yPosition += 6;
+
+      // Filter information
+      doc.setFontSize(9);
+      if (startDateFilter || endDateFilter) {
+        const dateRangeText = startDateFilter && endDateFilter 
+          ? `${format(new Date(startDateFilter), "MMM d, yyyy")} - ${format(new Date(endDateFilter), "MMM d, yyyy")}`
+          : startDateFilter 
+            ? `From ${format(new Date(startDateFilter), "MMM d, yyyy")}`
+            : `Until ${format(new Date(endDateFilter), "MMM d, yyyy")}`;
+        doc.text(`Date Range: ${dateRangeText}`, 15, yPosition);
+        yPosition += 5;
+      }
+      if (leaveTypeFilter !== "all-leave-types") {
+        const leaveTypeName = leaveTypes.find(lt => lt.id === leaveTypeFilter)?.name || leaveTypeFilter;
+        doc.text(`Leave Type: ${leaveTypeName}`, 15, yPosition);
+        yPosition += 5;
+      }
+      yPosition += 3;
 
       // Thin border line with 50% transparency
       doc.setDrawColor(128, 128, 128);
