@@ -17,7 +17,13 @@ import {
   getDownloadURL, 
   deleteObject 
 } from "firebase/storage";
-import { getFirebaseDb, getFirebaseStorage } from "./firebase";
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  User as FirebaseUser
+} from "firebase/auth";
+import { getFirebaseDb, getFirebaseStorage, getFirebaseAuth } from "./firebase";
 import { format } from "date-fns";
 
 // Types
@@ -26,9 +32,9 @@ export type UserRole = 'Admin' | 'CoAdmin';
 export interface User {
   id: string;
   name: string;
-  password: string;
   role: UserRole;
   createdAt: string;
+  firebaseUid?: string;
 }
 
 export interface Employee {
@@ -135,63 +141,46 @@ export const firebaseService = {
   },
 
   async login(name: string, password: string): Promise<User | null> {
-    const users = await this.getUsers();
-    const user = users.find(u => u.name === name);
-    if (!user) return null;
-    
-    // Check if password is hashed (bcrypt hashes start with $2)
-    if (user.password.startsWith('$2')) {
-      // Verify hashed password via server
-      try {
-        const response = await fetch('/api/verify-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password, hashedPassword: user.password }),
-        });
-        if (response.ok) {
-          const { isValid } = await response.json();
-          if (isValid) {
-            currentUser = user;
-            localStorage.setItem('lms_current_user', JSON.stringify(user));
-            return user;
-          }
+    try {
+      const auth = getFirebaseAuth();
+      // Use synthetic email pattern for Firebase Auth
+      const email = `${name.toLowerCase().replace(/\s+/g, '_')}@dfp.local`;
+      
+      // Sign in with Firebase Authentication
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUid = userCredential.user.uid;
+      
+      // Fetch user profile from Firestore
+      const users = await this.getUsers();
+      const user = users.find(u => u.firebaseUid === firebaseUid || u.name === name);
+      
+      if (user) {
+        // Update firebaseUid if not set
+        if (!user.firebaseUid) {
+          user.firebaseUid = firebaseUid;
+          await this.saveUser(user);
         }
-      } catch (error) {
-        console.error('Error verifying password:', error);
+        currentUser = user;
+        localStorage.setItem('lms_current_user', JSON.stringify(user));
+        return user;
       }
+      
+      // User not found in Firestore - sign out from Firebase
+      await signOut(auth);
       return null;
-    } else {
-      // Legacy plaintext password - verify and migrate to hashed
-      if (user.password === password) {
-        // Migrate password to hashed version - MUST succeed for login
-        try {
-          const hashResponse = await fetch('/api/hash-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password }),
-          });
-          if (hashResponse.ok) {
-            const { hashedPassword } = await hashResponse.json();
-            const updatedUser = { ...user, password: hashedPassword };
-            await this.saveUser(updatedUser);
-            currentUser = updatedUser;
-            localStorage.setItem('lms_current_user', JSON.stringify(updatedUser));
-            console.log('Password migrated to secure hash for user:', user.name);
-            return updatedUser;
-          } else {
-            console.error('Failed to hash password during migration - login denied');
-            return null;
-          }
-        } catch (error) {
-          console.error('Error migrating password - login denied:', error);
-          return null;
-        }
-      }
+    } catch (error: any) {
+      console.error('Firebase Auth login error:', error.code, error.message);
       return null;
     }
   },
 
-  logout(): void {
+  async logout(): Promise<void> {
+    try {
+      const auth = getFirebaseAuth();
+      await signOut(auth);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
     currentUser = null;
     localStorage.removeItem('lms_current_user');
   },
@@ -204,7 +193,6 @@ export const firebaseService = {
         currentUser = JSON.parse(stored);
         return currentUser;
       } catch (e) {
-        // Invalid JSON in localStorage, clear it
         localStorage.removeItem('lms_current_user');
         return null;
       }
@@ -215,6 +203,27 @@ export const firebaseService = {
   setCurrentUser(user: User): void {
     currentUser = user;
     localStorage.setItem('lms_current_user', JSON.stringify(user));
+  },
+
+  onAuthStateChange(callback: (user: User | null) => void): () => void {
+    const auth = getFirebaseAuth();
+    return onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        const users = await this.getUsers();
+        const user = users.find(u => u.firebaseUid === firebaseUser.uid);
+        if (user) {
+          currentUser = user;
+          localStorage.setItem('lms_current_user', JSON.stringify(user));
+          callback(user);
+        } else {
+          callback(null);
+        }
+      } else {
+        currentUser = null;
+        localStorage.removeItem('lms_current_user');
+        callback(null);
+      }
+    });
   },
 
   getCurrentUserId(): string {
