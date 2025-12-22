@@ -309,14 +309,22 @@ export const firebaseService = {
     const db = getFirebaseDb();
     const request = await this.getLeaveRequestById(id);
     
-    // Delete attachment from storage if exists
+    // Delete attachment from Google Drive if exists
     if (request?.attachmentUrl) {
       try {
-        const storage = getFirebaseStorage();
-        const fileRef = ref(storage, `attachments/${request.id}`);
-        await deleteObject(fileRef);
+        // Extract file ID from Google Drive URL
+        const url = request.attachmentUrl;
+        let fileId = null;
+        const idQueryMatch = url.match(/id=([^&]+)/);
+        if (idQueryMatch) fileId = idQueryMatch[1];
+        const filePathMatch = url.match(/\/file\/d\/([^/]+)/);
+        if (filePathMatch) fileId = filePathMatch[1];
+        
+        if (fileId) {
+          await fetch(`/api/delete-image/${fileId}`, { method: 'DELETE' });
+        }
       } catch (error) {
-        console.error("Error deleting attachment:", error);
+        console.error("Error deleting attachment from Drive:", error);
       }
     }
     
