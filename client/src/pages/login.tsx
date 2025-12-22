@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -7,58 +7,77 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { storage } from "@/lib/storage";
+import { firebaseService } from "@/lib/firebaseStorage";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, UserCheck } from "lucide-react";
+import { Shield, UserCheck, Loader2 } from "lucide-react";
 
 export default function Login() {
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    storage.initializeUsers();
-  }, []);
-
-  const handleLoginAsAdmin = () => {
-    storage.initializeUsers();
-    const users = storage.getUsers();
-    const adminUser = users.find(u => u.role === 'Admin');
-    if (adminUser) {
-      storage.login(adminUser.id);
-      toast({
-        title: "Login Successful",
-        description: `Welcome, ${adminUser.name}! (Admin)`,
-      });
-      setTimeout(() => {
-        window.location.replace("/");
-      }, 100);
-    } else {
+  const handleLoginAsAdmin = async () => {
+    setIsLoading(true);
+    try {
+      const users = await firebaseService.getUsers();
+      const adminUser = users.find(u => u.role === 'Admin');
+      if (adminUser) {
+        firebaseService.setCurrentUser(adminUser);
+        toast({
+          title: "Login Successful",
+          description: `Welcome, ${adminUser.name}! (Admin)`,
+        });
+        setTimeout(() => {
+          window.location.replace("/");
+        }, 100);
+      } else {
+        toast({
+          title: "Error",
+          description: "Admin user not found. Please refresh the page.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
       toast({
         title: "Error",
-        description: "Admin user not found. Please refresh the page.",
+        description: "Failed to login. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleLoginAsCoAdmin = () => {
-    storage.initializeUsers();
-    const users = storage.getUsers();
-    const coAdminUser = users.find(u => u.role === 'CoAdmin');
-    if (coAdminUser) {
-      storage.login(coAdminUser.id);
-      toast({
-        title: "Login Successful",
-        description: `Welcome, ${coAdminUser.name}! (CoAdmin)`,
-      });
-      setTimeout(() => {
-        window.location.replace("/");
-      }, 100);
-    } else {
+  const handleLoginAsCoAdmin = async () => {
+    setIsLoading(true);
+    try {
+      const users = await firebaseService.getUsers();
+      const coAdminUser = users.find(u => u.role === 'CoAdmin');
+      if (coAdminUser) {
+        firebaseService.setCurrentUser(coAdminUser);
+        toast({
+          title: "Login Successful",
+          description: `Welcome, ${coAdminUser.name}! (CoAdmin)`,
+        });
+        setTimeout(() => {
+          window.location.replace("/");
+        }, 100);
+      } else {
+        toast({
+          title: "Error",
+          description: "CoAdmin user not found. Please refresh the page.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
       toast({
         title: "Error",
-        description: "CoAdmin user not found. Please refresh the page.",
+        description: "Failed to login. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -81,8 +100,9 @@ export default function Login() {
             onClick={handleLoginAsAdmin} 
             className="w-full h-14 text-lg"
             variant="default"
+            disabled={isLoading}
           >
-            <Shield className="mr-3 h-5 w-5" />
+            {isLoading ? <Loader2 className="mr-3 h-5 w-5 animate-spin" /> : <Shield className="mr-3 h-5 w-5" />}
             Login as Admin
           </Button>
           
@@ -90,8 +110,9 @@ export default function Login() {
             onClick={handleLoginAsCoAdmin} 
             className="w-full h-14 text-lg"
             variant="outline"
+            disabled={isLoading}
           >
-            <UserCheck className="mr-3 h-5 w-5" />
+            {isLoading ? <Loader2 className="mr-3 h-5 w-5 animate-spin" /> : <UserCheck className="mr-3 h-5 w-5" />}
             Login as CoAdmin
           </Button>
 

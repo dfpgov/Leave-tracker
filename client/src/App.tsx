@@ -16,7 +16,8 @@ import EmployeeLeaveSummary from "@/pages/employee-leave-summary";
 import UserManagement from "@/pages/user-management";
 import Profile from "@/pages/profile";
 import Layout from "@/components/layout";
-import { storage } from "@/lib/storage";
+import { initializeFirebase } from "@/lib/firebase";
+import { firebaseService } from "@/lib/firebaseStorage";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   return (
@@ -73,16 +74,51 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
 function App() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Initialize users
-    storage.initializeUsers();
-    setIsAuthenticated(storage.isAuthenticated());
-    setIsInitialized(true);
+    async function init() {
+      try {
+        // Initialize Firebase
+        await initializeFirebase();
+        
+        // Seed initial data if needed
+        await firebaseService.seedInitialData();
+        
+        // Check if user is authenticated
+        const currentUser = firebaseService.getCurrentUser();
+        setIsAuthenticated(!!currentUser);
+        setIsInitialized(true);
+      } catch (error) {
+        console.error("Initialization error:", error);
+        setInitError("Failed to connect to database. Please try again.");
+        setIsInitialized(true);
+      }
+    }
+    init();
   }, []);
 
   if (!isInitialized) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <p className="text-muted-foreground">Connecting to database...</p>
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <p className="text-destructive">{initError}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
