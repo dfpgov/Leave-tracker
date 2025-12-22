@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { firebaseService } from "@/lib/firebaseStorage";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Eye, EyeOff } from "lucide-react";
+import logoImg from "@assets/images_(13)_1766356753117.png";
 
 export default function Login() {
   const { toast } = useToast();
@@ -66,12 +67,8 @@ export default function Login() {
         <div className="bg-[#161F31] text-white p-6">
           <div className="flex items-center gap-4">
             {/* Logo - circular with government seal style */}
-            <div className="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center flex-shrink-0 border-2 border-red-400">
-              <svg viewBox="0 0 100 100" className="w-10 h-10">
-                <circle cx="50" cy="50" r="45" fill="#c41e3a" stroke="#ffd700" strokeWidth="2"/>
-                <path d="M50 20 L55 35 L70 35 L58 45 L63 60 L50 50 L37 60 L42 45 L30 35 L45 35 Z" fill="#ffd700"/>
-                <circle cx="50" cy="50" r="20" fill="none" stroke="#ffd700" strokeWidth="1"/>
-              </svg>
+            <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+              <img src={logoImg} alt="Logo" className="w-full h-full object-cover" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-wide">Leave Tracker</h1>
