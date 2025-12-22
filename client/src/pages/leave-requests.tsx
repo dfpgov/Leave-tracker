@@ -433,7 +433,13 @@ export default function LeaveRequests() {
       doc.setFont("helvetica", "normal");
       doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
       doc.text(`Total Records: ${filteredRequests.length}`, pageWidth - 15, yPosition, { align: "right" });
-      yPosition += 10;
+      yPosition += 8;
+
+      // Thin border line with 50% transparency
+      doc.setDrawColor(128, 128, 128);
+      doc.setLineWidth(0.3);
+      doc.line(15, yPosition, pageWidth - 15, yPosition);
+      yPosition += 8;
 
       // Create colorful table
       const colWidths = [30, 25, 30, 30, 15, 20];
