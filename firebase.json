@@ -1,0 +1,36 @@
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/api/hash-password",
+        "function": "hashPassword"
+      },
+      {
+        "source": "/api/verify-password",
+        "function": "verifyPassword"
+      },
+      {
+        "source": "/api/upload-image",
+        "function": "uploadImage"
+      },
+      {
+        "source": "/api/delete-image",
+        "function": "deleteImage"
+      },
+      {
+        "source": "/api/drive-storage",
+        "function": "driveStorage"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs18"
+  }
+}
