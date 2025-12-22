@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Eye, Download, X } from "lucide-react";
+import { Eye, Download, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +38,8 @@ export default function EmployeeLeaveSummary() {
   const [dateFromFilter, setDateFromFilter] = useState("");
   const [dateToFilter, setDateToFilter] = useState("");
   const [leaveTypeFilter, setLeaveTypeFilter] = useState("all-types");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
   const { toast } = useToast();
 
   useEffect(() => {
@@ -96,16 +98,19 @@ export default function EmployeeLeaveSummary() {
 
   const handleNameFilterChange = (value: string) => {
     setNameFilter(value);
+    setCurrentPage(1);
     applyFilters(employees, value, dateFromFilter, dateToFilter);
   };
 
   const handleDateFromChange = (value: string) => {
     setDateFromFilter(value);
+    setCurrentPage(1);
     applyFilters(employees, nameFilter, value, dateToFilter);
   };
 
   const handleDateToChange = (value: string) => {
     setDateToFilter(value);
+    setCurrentPage(1);
     applyFilters(employees, nameFilter, dateFromFilter, value);
   };
 
@@ -114,8 +119,16 @@ export default function EmployeeLeaveSummary() {
     setDateFromFilter("");
     setDateToFilter("");
     setLeaveTypeFilter("all-types");
+    setCurrentPage(1);
     setFilteredEmployees(employees);
   };
+
+  // Pagination calculations
+  const totalItems = filteredEmployees.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+  const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
 
   const getEmployeeLeaveData = (employee: Employee) => {
     let filteredLeaves = leaveRequests.filter(r => r.employeeId === employee.id && r.status === "Approved");
@@ -378,7 +391,7 @@ export default function EmployeeLeaveSummary() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredEmployees.map((employee) => {
+            {paginatedEmployees.map((employee) => {
               const { filteredLeaves, filteredTotalDays, casualLeaveUsed, casualLeaveLeft } = getEmployeeLeaveData(employee);
               
               return (
@@ -493,6 +506,38 @@ export default function EmployeeLeaveSummary() {
             })}
           </TableBody>
         </Table>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-between px-4 py-3 border-t">
+          <div className="text-sm text-muted-foreground" data-testid="text-pagination-summary">
+            Showing {totalItems > 0 ? startIndex + 1 : 0} to {endIndex} of {totalItems} entries
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              data-testid="button-prev-page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground px-2">
+              Page {currentPage} of {totalPages || 1}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages}
+              data-testid="button-next-page"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

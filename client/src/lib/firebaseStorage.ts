@@ -7,7 +7,9 @@ import {
   deleteDoc, 
   query, 
   where,
-  writeBatch
+  writeBatch,
+  deleteField,
+  updateDoc
 } from "firebase/firestore";
 import { 
   ref, 

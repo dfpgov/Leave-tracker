@@ -248,6 +248,8 @@ export default function LeaveRequests() {
     updatedRequest.status = "Approved";
     updatedRequest.updatedBy = firebaseService.getCurrentUserId();
     updatedRequest.updatedAt = new Date().toISOString();
+    updatedRequest.attachmentUrl = "";
+    updatedRequest.attachmentFileName = "";
     await firebaseService.saveLeaveRequest(updatedRequest);
     await refreshData();
     toast({
