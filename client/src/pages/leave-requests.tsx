@@ -168,9 +168,30 @@ export default function LeaveRequests() {
         const base64 = e.target?.result as string;
         const requestId = editingId || firebaseService.generateLeaveRequestId();
         
-        let attachmentUrl: string | undefined;
+        let attachmentUrl = "";
         try {
-          attachmentUrl = await firebaseService.uploadAttachmentFromBase64(requestId, base64, attachmentFile.name);
+          // Upload to Google Drive via server API
+          const response = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              base64Data: base64,
+              fileName: `${requestId}_${attachmentFile.name}`,
+              mimeType: attachmentFile.type,
+            }),
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            attachmentUrl = result.webContentLink || result.webViewLink;
+          } else {
+            console.error("Error uploading to Google Drive:", await response.text());
+            toast({
+              title: "Upload Warning",
+              description: "Image could not be uploaded to Drive. Leave saved without attachment.",
+              variant: "destructive"
+            });
+          }
         } catch (error) {
           console.error("Error uploading attachment:", error);
         }
@@ -190,7 +211,7 @@ export default function LeaveRequests() {
           status: initialStatus,
           timestamp: editingId ? (requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString()) : new Date().toISOString(),
           attachmentFileName: attachmentFile.name,
-          attachmentUrl: attachmentUrl || "",
+          attachmentUrl: attachmentUrl,
           doneBy: firebaseService.getCurrentUserId(),
           updatedAt: new Date().toISOString(),
           updatedBy: isAdmin ? firebaseService.getCurrentUserId() : "",

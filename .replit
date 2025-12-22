@@ -41,7 +41,9 @@ waitForPort = 5000
 
 [agent]
 mockupState = "FULLSTACK"
+integrations = ["google-drive:1.0.0"]
 
 [userenv]
 
 [userenv.shared]
+GOOGLE_DRIVE_FOLDER_ID = "1qqtJcL0Hxy0xHtbrFFZdnyNdfy3ehneI"
