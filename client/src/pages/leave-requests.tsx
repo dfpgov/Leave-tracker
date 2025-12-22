@@ -596,9 +596,9 @@ export default function LeaveRequests() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-heading">Approved Leave</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading">Approved Leave</h1>
           <p className="text-muted-foreground mt-1">Manage employee approved leave</p>
         </div>
         
@@ -850,6 +850,7 @@ export default function LeaveRequests() {
            </div>
         </div>
 
+        <div className="overflow-x-auto">
         <Table>
             <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
@@ -1096,8 +1097,9 @@ export default function LeaveRequests() {
             )}
             </TableBody>
         </Table>
+        </div>
 
-        <div className="flex items-center justify-between p-4 border-t">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t">
           <div className="text-sm text-muted-foreground">
             Page {currentPage} of {totalPages || 1}
           </div>

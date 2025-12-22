@@ -161,11 +161,31 @@ export const firebaseService = {
       }
       return null;
     } else {
-      // Legacy plain text password (backwards compatible)
+      // Legacy plaintext password - verify and migrate to hashed
       if (user.password === password) {
-        currentUser = user;
-        localStorage.setItem('lms_current_user', JSON.stringify(user));
-        return user;
+        // Migrate password to hashed version - MUST succeed for login
+        try {
+          const hashResponse = await fetch('/api/hash-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+          });
+          if (hashResponse.ok) {
+            const { hashedPassword } = await hashResponse.json();
+            const updatedUser = { ...user, password: hashedPassword };
+            await this.saveUser(updatedUser);
+            currentUser = updatedUser;
+            localStorage.setItem('lms_current_user', JSON.stringify(updatedUser));
+            console.log('Password migrated to secure hash for user:', user.name);
+            return updatedUser;
+          } else {
+            console.error('Failed to hash password during migration - login denied');
+            return null;
+          }
+        } catch (error) {
+          console.error('Error migrating password - login denied:', error);
+          return null;
+        }
       }
       return null;
     }

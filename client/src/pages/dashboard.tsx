@@ -157,9 +157,10 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-card rounded-xl border shadow-sm">
-            <div className="p-6 border-b">
+            <div className="p-4 sm:p-6 border-b">
                 <h3 className="text-lg font-semibold">People on Leave Today</h3>
             </div>
+            <div className="overflow-x-auto">
             <Table>
                 <TableHeader>
                     <TableRow className="bg-muted/30">
@@ -196,6 +197,7 @@ export default function Dashboard() {
                     )}
                 </TableBody>
             </Table>
+            </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

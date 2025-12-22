@@ -283,8 +283,8 @@ export default function Employees() {
       </div>
 
       <div className="bg-card rounded-xl border shadow-sm">
-        <div className="p-4 border-b flex items-center justify-between gap-4">
-           <div className="relative flex-1 max-w-sm">
+        <div className="p-4 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+           <div className="relative flex-1 w-full sm:max-w-sm">
              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
              <Input 
                 placeholder="Search employees..." 
@@ -302,11 +302,12 @@ export default function Employees() {
                  <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedIds.size})
                </Button>
              )}
-             <div className="text-sm text-muted-foreground">
-               Total Employees: {employees.length}
+             <div className="text-sm text-muted-foreground whitespace-nowrap">
+               Total: {employees.length}
              </div>
            </div>
         </div>
+        <div className="overflow-x-auto">
         <Table>
             <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
@@ -362,8 +363,9 @@ export default function Employees() {
             )}
             </TableBody>
         </Table>
+        </div>
 
-        <div className="flex items-center justify-between p-4 border-t">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t">
           <div className="text-sm text-muted-foreground">
             Page {currentPage} of {totalPages || 1}
           </div>

@@ -377,7 +377,8 @@ export default function EmployeeLeaveSummary() {
         </div>
       </div>
 
-      <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+      <div className="bg-card rounded-xl border shadow-sm">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30">
@@ -506,9 +507,10 @@ export default function EmployeeLeaveSummary() {
             })}
           </TableBody>
         </Table>
+        </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t">
           <div className="text-sm text-muted-foreground" data-testid="text-pagination-summary">
             Showing {totalItems > 0 ? startIndex + 1 : 0} to {endIndex} of {totalItems} entries
           </div>

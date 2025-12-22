@@ -94,9 +94,9 @@ export default function LeaveTypes() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 className="text-3xl font-bold font-heading">Leave Types</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold font-heading">Leave Types</h1>
             <p className="text-muted-foreground mt-1">Configure leave categories and limits</p>
         </div>
         
@@ -145,7 +145,7 @@ export default function LeaveTypes() {
         </Dialog>
       </div>
 
-      <div className="bg-card rounded-xl border shadow-sm">
+      <div className="bg-card rounded-xl border shadow-sm overflow-x-auto">
         <Table>
             <TableHeader>
             <TableRow className="bg-muted/30">
