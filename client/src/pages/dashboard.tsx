@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { storage } from "@/lib/storage";
+import { firebaseService } from "@/lib/firebaseStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { useLocation } from "wouter";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const currentUser = storage.getCurrentUser();
+  const currentUser = firebaseService.getCurrentUser();
   const [stats, setStats] = useState({
     totalEmployees: 0,
     employeesOnLeave: 0,
@@ -20,17 +20,37 @@ export default function Dashboard() {
   const [holidays, setHolidays] = useState<any[]>([]);
 
   useEffect(() => {
-    const s = storage.getStats();
-    const allRequests = storage.getLeaveRequests();
-    const pendingCount = allRequests.filter(r => r.status === 'Pending').length;
-    setStats({
-      totalEmployees: s.totalEmployees,
-      employeesOnLeave: s.employeesOnLeave,
-      pendingLeaves: pendingCount
-    });
-    setEmployees(storage.getEmployees());
-    setRequests(allRequests);
-    setHolidays(storage.getHolidays());
+    async function loadData() {
+      const [allEmployees, allRequests, allHolidays] = await Promise.all([
+        firebaseService.getEmployees(),
+        firebaseService.getLeaveRequests(),
+        firebaseService.getHolidays()
+      ]);
+      
+      setEmployees(allEmployees);
+      setRequests(allRequests);
+      setHolidays(allHolidays);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const activeLeaves = allRequests.filter(r => {
+        const start = new Date(r.startDate);
+        const end = new Date(r.endDate);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(0, 0, 0, 0);
+        return today >= start && today <= end && r.status === 'Approved';
+      });
+      
+      const pendingCount = allRequests.filter(r => r.status === 'Pending').length;
+      
+      setStats({
+        totalEmployees: allEmployees.length,
+        employeesOnLeave: activeLeaves.length,
+        pendingLeaves: pendingCount
+      });
+    }
+    loadData();
   }, []);
 
   const today = new Date();

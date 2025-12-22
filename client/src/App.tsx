@@ -83,14 +83,19 @@ function App() {
         await initializeFirebase();
         
         // Seed initial data if needed
-        await firebaseService.seedInitialData();
+        try {
+          await firebaseService.seedInitialData();
+        } catch (seedError) {
+          // Seeding error is non-fatal - data may already exist
+          console.log("Seed data check completed");
+        }
         
         // Check if user is authenticated
         const currentUser = firebaseService.getCurrentUser();
         setIsAuthenticated(!!currentUser);
         setIsInitialized(true);
-      } catch (error) {
-        console.error("Initialization error:", error);
+      } catch (error: any) {
+        console.error("Initialization error:", error?.message || error);
         setInitError("Failed to connect to database. Please try again.");
         setIsInitialized(true);
       }

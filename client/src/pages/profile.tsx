@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { storage, User } from "@/lib/storage";
+import { firebaseService, User } from "@/lib/firebaseStorage";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ export default function Profile() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const user = storage.getCurrentUser();
+    const user = firebaseService.getCurrentUser();
     if (!user) {
       setLocation("/login");
       return;
@@ -27,11 +27,12 @@ export default function Profile() {
     setEditName(user.name);
   }, []);
 
-  const handleUpdateProfile = () => {
+  const handleUpdateProfile = async () => {
     if (!currentUser || !editName.trim()) return;
 
     const updatedUser = { ...currentUser, name: editName.trim() };
-    storage.saveUser(updatedUser);
+    await firebaseService.saveUser(updatedUser);
+    firebaseService.setCurrentUser(updatedUser);
     setCurrentUser(updatedUser);
     setIsEditing(false);
     toast({
@@ -40,7 +41,7 @@ export default function Profile() {
     });
   };
 
-  const handleUpdatePassword = () => {
+  const handleUpdatePassword = async () => {
     if (!currentUser) return;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -80,7 +81,8 @@ export default function Profile() {
     }
 
     const updatedUser = { ...currentUser, password: newPassword };
-    storage.saveUser(updatedUser);
+    await firebaseService.saveUser(updatedUser);
+    firebaseService.setCurrentUser(updatedUser);
     setCurrentUser(updatedUser);
     setCurrentPassword("");
     setNewPassword("");

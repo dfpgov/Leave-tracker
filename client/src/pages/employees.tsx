@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { storage, Employee } from "@/lib/storage";
+import { firebaseService, Employee } from "@/lib/firebaseStorage";
 import {
   Table,
   TableBody,
@@ -68,7 +68,11 @@ export default function Employees() {
   });
 
   useEffect(() => {
-    setEmployees(storage.getEmployees().sort((a, b) => a.name.localeCompare(b.name)));
+    async function loadData() {
+      const data = await firebaseService.getEmployees();
+      setEmployees(data.sort((a, b) => a.name.localeCompare(b.name)));
+    }
+    loadData();
   }, []);
 
   const filteredEmployees = employees.filter((e) =>
@@ -76,7 +80,6 @@ export default function Employees() {
     e.designation.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => a.name.localeCompare(b.name));
 
-  // Pagination logic
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -90,16 +93,17 @@ export default function Employees() {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
   };
 
-  const onSubmit = (values: z.infer<typeof employeeSchema>) => {
+  const onSubmit = async (values: z.infer<typeof employeeSchema>) => {
     const newEmployee: Employee = {
-      id: editingEmployee ? editingEmployee.id : storage.generateEmployeeId(),
+      id: editingEmployee ? editingEmployee.id : firebaseService.generateEmployeeId(),
       ...values,
       lastEdited: new Date().toISOString(),
-      doneBy: storage.getCurrentUserId(),
+      doneBy: firebaseService.getCurrentUserId(),
     };
 
-    storage.saveEmployee(newEmployee);
-    setEmployees(storage.getEmployees());
+    await firebaseService.saveEmployee(newEmployee);
+    const data = await firebaseService.getEmployees();
+    setEmployees(data.sort((a, b) => a.name.localeCompare(b.name)));
     setIsDialogOpen(false);
     setEditingEmployee(null);
     form.reset();
@@ -121,10 +125,11 @@ export default function Employees() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this employee?")) {
-      storage.deleteEmployee(id);
-      setEmployees(storage.getEmployees());
+      await firebaseService.deleteEmployee(id);
+      const data = await firebaseService.getEmployees();
+      setEmployees(data.sort((a, b) => a.name.localeCompare(b.name)));
       setSelectedIds(prev => {
         const newSet = new Set(prev);
         newSet.delete(id);
@@ -138,11 +143,12 @@ export default function Employees() {
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     if (confirm(`Are you sure you want to delete ${selectedIds.size} employee(s)?`)) {
-      selectedIds.forEach(id => storage.deleteEmployee(id));
-      setEmployees(storage.getEmployees());
+      await firebaseService.deleteEmployees(Array.from(selectedIds));
+      const data = await firebaseService.getEmployees();
+      setEmployees(data.sort((a, b) => a.name.localeCompare(b.name)));
       setSelectedIds(new Set());
       setCurrentPage(1);
       toast({

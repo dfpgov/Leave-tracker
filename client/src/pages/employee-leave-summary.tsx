@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { storage, Employee, LeaveType } from "@/lib/storage";
+import { firebaseService, Employee, LeaveType, LeaveRequest } from "@/lib/firebaseStorage";
 import {
   Table,
   TableBody,
@@ -33,6 +33,7 @@ export default function EmployeeLeaveSummary() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [nameFilter, setNameFilter] = useState("");
   const [dateFromFilter, setDateFromFilter] = useState("");
   const [dateToFilter, setDateToFilter] = useState("");
@@ -40,10 +41,19 @@ export default function EmployeeLeaveSummary() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const allEmployees = storage.getEmployees().sort((a, b) => a.name.localeCompare(b.name));
-    setEmployees(allEmployees);
-    setFilteredEmployees(allEmployees);
-    setLeaveTypes(storage.getLeaveTypes());
+    async function loadData() {
+      const [allEmployees, allLeaveTypes, allRequests] = await Promise.all([
+        firebaseService.getEmployees(),
+        firebaseService.getLeaveTypes(),
+        firebaseService.getLeaveRequests()
+      ]);
+      const sortedEmployees = allEmployees.sort((a, b) => a.name.localeCompare(b.name));
+      setEmployees(sortedEmployees);
+      setFilteredEmployees(sortedEmployees);
+      setLeaveTypes(allLeaveTypes);
+      setLeaveRequests(allRequests);
+    }
+    loadData();
   }, []);
 
   const applyFilters = (
@@ -62,7 +72,7 @@ export default function EmployeeLeaveSummary() {
 
     if (dateFrom || dateTo) {
       filtered = filtered.filter((emp) => {
-        const leaves = storage.getLeaveRequests().filter(
+        const leaves = leaveRequests.filter(
           (r) => r.employeeId === emp.id && r.status === "Approved"
         );
         if (leaves.length === 0) return false;
@@ -107,12 +117,9 @@ export default function EmployeeLeaveSummary() {
     setFilteredEmployees(employees);
   };
 
-  const downloadEmployeeLeavePDF = (employee: Employee) => {
-    const allLeaveRequests = storage.getLeaveRequests();
+  const getEmployeeLeaveData = (employee: Employee) => {
+    let filteredLeaves = leaveRequests.filter(r => r.employeeId === employee.id && r.status === "Approved");
     
-    let filteredLeaves = allLeaveRequests.filter(r => r.employeeId === employee.id && r.status === "Approved");
-    
-    // Filter by leave type
     if (leaveTypeFilter !== "all-types") {
       filteredLeaves = filteredLeaves.filter(leave => leave.leaveTypeId === leaveTypeFilter);
     }
@@ -130,6 +137,25 @@ export default function EmployeeLeaveSummary() {
       });
     }
     
+    const filteredTotalDays = filteredLeaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
+    
+    const currentYear = new Date().getFullYear();
+    const casualLeaveUsed = leaveRequests
+      .filter(r => 
+        r.employeeId === employee.id && 
+        r.status === "Approved" && 
+        r.leaveTypeName === "Casual Leave" &&
+        new Date(r.startDate).getFullYear() === currentYear
+      )
+      .reduce((acc, leave) => acc + leave.approvedDays, 0);
+    const casualLeaveLeft = Math.max(0, 20 - casualLeaveUsed);
+
+    return { filteredLeaves, filteredTotalDays, casualLeaveUsed, casualLeaveLeft };
+  };
+
+  const downloadEmployeeLeavePDF = (employee: Employee) => {
+    const { filteredLeaves } = getEmployeeLeaveData(employee);
+    
     if (filteredLeaves.length === 0) {
       toast({
         title: "No Data",
@@ -141,12 +167,10 @@ export default function EmployeeLeaveSummary() {
 
     const totalDays = filteredLeaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
     
-    // Get selected leave type name
     const selectedLeaveType = leaveTypeFilter !== "all-types" 
       ? leaveTypes.find(t => t.id === leaveTypeFilter)?.name || "All Leave Types"
       : "All Leave Types";
     
-    // Generate descriptive title for what we're downloading
     const dateRange = filteredLeaves.length > 0 
       ? `${format(new Date(Math.min(...filteredLeaves.map(l => new Date(l.startDate).getTime()))), "MMM d, yyyy")} to ${format(new Date(Math.max(...filteredLeaves.map(l => new Date(l.endDate).getTime()))), "MMM d, yyyy")}`
       : "";
@@ -164,26 +188,22 @@ export default function EmployeeLeaveSummary() {
       const pageWidth = doc.internal.pageSize.getWidth();
       let yPosition = 15;
 
-      // Department Header
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.text("Department of Films & Publications", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 7;
 
-      // Address
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       doc.text("112 Circuit House Rd, Dhaka 1205", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 12;
 
-      // Report Title
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
       doc.text("Employee Leave Summary", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 5;
 
-      // Border after headline
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.3);
       doc.line(15, yPosition, pageWidth - 15, yPosition);
@@ -192,50 +212,42 @@ export default function EmployeeLeaveSummary() {
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       
-      // Report Period and Type text
       const fromText = dateFromFilter ? format(new Date(dateFromFilter), "MMM d, yyyy") : "All Dates";
       const toText = dateToFilter ? format(new Date(dateToFilter), "MMM d, yyyy") : "All Dates";
       const periodText = (dateFromFilter || dateToFilter) 
         ? `${fromText} to ${toText}` 
         : "All Dates";
       
-      // Two column layout - Left column (3 items)
       const leftX = 15;
       const rightX = pageWidth / 2 + 10;
       const infoStartY = yPosition;
       
-      // Left column
       doc.text(`Name: ${employee.name}`, leftX, infoStartY);
       doc.text(`Designation: ${employee.designation}`, leftX, infoStartY + 6);
       doc.text(`Section: ${employee.department}`, leftX, infoStartY + 12);
       
-      // Right column
       doc.text(`Generated: ${format(new Date(), "PPP p")}`, rightX, infoStartY);
       doc.text(`Report Period: ${periodText}`, rightX, infoStartY + 6);
       doc.text(`Report Type: ${selectedLeaveType}`, rightX, infoStartY + 12);
       
       yPosition = infoStartY + 18;
 
-      // Border after employee info
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.3);
       doc.line(15, yPosition, pageWidth - 15, yPosition);
       yPosition += 8;
 
-      // Total days box
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(12);
       doc.text(`Total Leave Days: ${totalDays}`, 15, yPosition);
       yPosition += 8;
 
-      // Border before leave breakdown
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.3);
       doc.line(15, yPosition, pageWidth - 15, yPosition);
       yPosition += 8;
 
-      // Section header
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
@@ -266,8 +278,8 @@ export default function EmployeeLeaveSummary() {
             yPosition = 15;
           }
 
-          const dateRange = `${format(new Date(leave.startDate), "MMM d")} - ${format(new Date(leave.endDate), "MMM d, yyyy")}`;
-          doc.text(`  • ${dateRange} (${leave.approvedDays} days)`, 20, yPosition);
+          const dateRangeText = `${format(new Date(leave.startDate), "MMM d")} - ${format(new Date(leave.endDate), "MMM d, yyyy")}`;
+          doc.text(`  • ${dateRangeText} (${leave.approvedDays} days)`, 20, yPosition);
           yPosition += 4;
         });
 
@@ -301,7 +313,6 @@ export default function EmployeeLeaveSummary() {
         <p className="text-muted-foreground mt-1">View and download leave records for all employees</p>
       </div>
 
-      {/* Filters */}
       <div className="bg-card rounded-xl border shadow-sm p-4 space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Filters</h3>
@@ -353,7 +364,6 @@ export default function EmployeeLeaveSummary() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
@@ -369,39 +379,7 @@ export default function EmployeeLeaveSummary() {
           </TableHeader>
           <TableBody>
             {filteredEmployees.map((employee) => {
-              let filteredLeaves = storage.getLeaveRequests().filter(r => r.employeeId === employee.id && r.status === "Approved");
-              
-              // Filter by leave type
-              if (leaveTypeFilter !== "all-types") {
-                filteredLeaves = filteredLeaves.filter(leave => leave.leaveTypeId === leaveTypeFilter);
-              }
-              
-              if (dateFromFilter || dateToFilter) {
-                filteredLeaves = filteredLeaves.filter(leave => {
-                  const fromDate = dateFromFilter ? new Date(dateFromFilter) : null;
-                  const toDate = dateToFilter ? new Date(dateToFilter) : null;
-                  const leaveStart = new Date(leave.startDate);
-                  const leaveEnd = new Date(leave.endDate);
-                  
-                  if (fromDate && leaveEnd < fromDate) return false;
-                  if (toDate && leaveStart > toDate) return false;
-                  return true;
-                });
-              }
-              
-              const filteredTotalDays = filteredLeaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
-              
-              // Calculate casual leave usage for current year
-              const currentYear = new Date().getFullYear();
-              const casualLeaveUsed = storage.getLeaveRequests()
-                .filter(r => 
-                  r.employeeId === employee.id && 
-                  r.status === "Approved" && 
-                  r.leaveTypeName === "Casual Leave" &&
-                  new Date(r.startDate).getFullYear() === currentYear
-                )
-                .reduce((acc, leave) => acc + leave.approvedDays, 0);
-              const casualLeaveLeft = Math.max(0, 20 - casualLeaveUsed);
+              const { filteredLeaves, filteredTotalDays, casualLeaveUsed, casualLeaveLeft } = getEmployeeLeaveData(employee);
               
               return (
                 <TableRow key={employee.id}>

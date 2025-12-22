@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { storage, LeaveType } from "@/lib/storage";
+import { firebaseService, LeaveType } from "@/lib/firebaseStorage";
 import {
   Table,
   TableBody,
@@ -33,7 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const leaveTypeSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  maxDays: z.string().optional(), // String because input type=number returns string usually
+  maxDays: z.string().optional(),
 });
 
 export default function LeaveTypes() {
@@ -50,19 +50,24 @@ export default function LeaveTypes() {
   });
 
   useEffect(() => {
-    setLeaveTypes(storage.getLeaveTypes());
+    async function loadData() {
+      const data = await firebaseService.getLeaveTypes();
+      setLeaveTypes(data);
+    }
+    loadData();
   }, []);
 
-  const onSubmit = (values: z.infer<typeof leaveTypeSchema>) => {
+  const onSubmit = async (values: z.infer<typeof leaveTypeSchema>) => {
     const newLeaveType: LeaveType = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: firebaseService.generateLeaveTypeId(),
       name: values.name,
       maxDays: values.maxDays ? parseInt(values.maxDays) : null,
-      doneBy: storage.getCurrentUserId(),
+      doneBy: firebaseService.getCurrentUserId(),
     };
 
-    storage.saveLeaveType(newLeaveType);
-    setLeaveTypes(storage.getLeaveTypes());
+    await firebaseService.saveLeaveType(newLeaveType);
+    const data = await firebaseService.getLeaveTypes();
+    setLeaveTypes(data);
     setIsDialogOpen(false);
     form.reset();
     toast({
@@ -71,7 +76,7 @@ export default function LeaveTypes() {
     });
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (name === "Casual Leave") {
       toast({
         title: "Cannot Delete",
@@ -81,8 +86,9 @@ export default function LeaveTypes() {
       return;
     }
     if (confirm("Delete this leave type?")) {
-      storage.deleteLeaveType(id);
-      setLeaveTypes(storage.getLeaveTypes());
+      await firebaseService.deleteLeaveType(id);
+      const data = await firebaseService.getLeaveTypes();
+      setLeaveTypes(data);
     }
   };
 

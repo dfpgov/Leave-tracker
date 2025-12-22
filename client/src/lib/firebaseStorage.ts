@@ -163,6 +163,16 @@ export const firebaseService = {
     localStorage.setItem('lms_current_user', JSON.stringify(user));
   },
 
+  getCurrentUserId(): string {
+    const user = this.getCurrentUser();
+    return user?.id || '';
+  },
+
+  async getUserName(userId: string): Promise<string> {
+    const user = await this.getUserById(userId);
+    return user ? user.name : 'Unknown';
+  },
+
   // ============ EMPLOYEES ============
   async getEmployees(): Promise<Employee[]> {
     const db = getFirebaseDb();

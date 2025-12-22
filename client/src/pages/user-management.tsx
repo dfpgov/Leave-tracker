@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { storage, User } from "@/lib/storage";
+import { firebaseService, User } from "@/lib/firebaseStorage";
 import {
   Table,
   TableBody,
@@ -61,9 +61,13 @@ export default function UserManagement() {
   });
 
   useEffect(() => {
-    const user = storage.getCurrentUser();
-    setCurrentUser(user);
-    setUsers(storage.getUsers());
+    async function loadData() {
+      const user = firebaseService.getCurrentUser();
+      setCurrentUser(user);
+      const allUsers = await firebaseService.getUsers();
+      setUsers(allUsers);
+    }
+    loadData();
   }, []);
 
   if (!currentUser || currentUser.role !== 'Admin') {
@@ -78,15 +82,16 @@ export default function UserManagement() {
     );
   }
 
-  const onSubmit = (values: z.infer<typeof userSchema>) => {
+  const onSubmit = async (values: z.infer<typeof userSchema>) => {
     const newUser: User = {
-      id: storage.generateUserId(),
+      id: firebaseService.generateUserId(),
       ...values,
       createdAt: new Date().toISOString(),
     };
 
-    storage.saveUser(newUser);
-    setUsers(storage.getUsers());
+    await firebaseService.saveUser(newUser);
+    const allUsers = await firebaseService.getUsers();
+    setUsers(allUsers);
     setIsDialogOpen(false);
     form.reset();
     
@@ -96,7 +101,7 @@ export default function UserManagement() {
     });
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (id === currentUser?.id) {
       toast({
         title: "Cannot Delete",
@@ -107,8 +112,9 @@ export default function UserManagement() {
     }
 
     if (confirm("Are you sure you want to delete this user?")) {
-      storage.deleteUser(id);
-      setUsers(storage.getUsers());
+      await firebaseService.deleteUser(id);
+      const allUsers = await firebaseService.getUsers();
+      setUsers(allUsers);
       toast({
         title: "User Deleted",
         description: "User has been removed from the system.",

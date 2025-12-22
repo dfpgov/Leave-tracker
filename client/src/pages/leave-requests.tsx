@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { storage, LeaveRequest, Employee, LeaveType, calculateDays, User } from "@/lib/storage";
+import { firebaseService, LeaveRequest, Employee, LeaveType, calculateDays, User } from "@/lib/firebaseStorage";
 import {
   Table,
   TableBody,
@@ -56,6 +56,7 @@ export default function LeaveRequests() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -81,7 +82,7 @@ export default function LeaveRequests() {
 
   useEffect(() => {
     refreshData();
-    setCurrentUser(storage.getCurrentUser());
+    setCurrentUser(firebaseService.getCurrentUser());
   }, []);
 
   useEffect(() => {
@@ -94,13 +95,25 @@ export default function LeaveRequests() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const refreshData = () => {
-    setRequests(storage.getLeaveRequests());
-    setEmployees(storage.getEmployees());
-    setLeaveTypes(storage.getLeaveTypes());
+  const refreshData = async () => {
+    const [allRequests, allEmployees, allLeaveTypes, allUsers] = await Promise.all([
+      firebaseService.getLeaveRequests(),
+      firebaseService.getEmployees(),
+      firebaseService.getLeaveTypes(),
+      firebaseService.getUsers()
+    ]);
+    setRequests(allRequests);
+    setEmployees(allEmployees);
+    setLeaveTypes(allLeaveTypes);
+    setUsers(allUsers);
   };
 
-  const onSubmit = (values: z.infer<typeof requestSchema>) => {
+  const getUserName = (userId: string): string => {
+    const user = users.find(u => u.id === userId);
+    return user ? user.name : 'Unknown';
+  };
+
+  const onSubmit = async (values: z.infer<typeof requestSchema>) => {
     const employee = employees.find(e => e.id === values.employeeId);
     const leaveType = leaveTypes.find(t => t.id === values.leaveTypeId);
 
@@ -146,16 +159,24 @@ export default function LeaveRequests() {
       return;
     }
 
-    let attachmentBase64: string | undefined;
     const isAdmin = currentUser?.role === 'Admin';
     const initialStatus = isAdmin ? "Approved" : "Pending";
 
     if (attachmentFile && isImage) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const base64 = e.target?.result as string;
+        const requestId = editingId || firebaseService.generateLeaveRequestId();
+        
+        let attachmentUrl: string | undefined;
+        try {
+          attachmentUrl = await firebaseService.uploadAttachmentFromBase64(requestId, base64, attachmentFile.name);
+        } catch (error) {
+          console.error("Error uploading attachment:", error);
+        }
+
         const newReq: LeaveRequest = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: requestId,
           employeeId: employee.id,
           employeeName: employee.name,
           designation: employee.designation,
@@ -167,16 +188,17 @@ export default function LeaveRequests() {
           approvedDays: requestedDaysNum,
           comments: values.comments || "",
           status: initialStatus,
-          timestamp: new Date().toISOString(),
+          timestamp: editingId ? (requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString()) : new Date().toISOString(),
           attachmentFileName: attachmentFile.name,
-          attachmentBase64: base64,
-          doneBy: storage.getCurrentUserId(),
+          attachmentUrl: attachmentUrl,
+          doneBy: firebaseService.getCurrentUserId(),
           updatedAt: new Date().toISOString(),
-          updatedBy: isAdmin ? storage.getCurrentUserId() : undefined,
+          updatedBy: isAdmin ? firebaseService.getCurrentUserId() : undefined,
         };
-        storage.saveLeaveRequest(newReq);
-        refreshData();
+        await firebaseService.saveLeaveRequest(newReq);
+        await refreshData();
         setIsDialogOpen(false);
+        setEditingId(null);
         form.reset();
         toast({
           title: isAdmin ? "Leave Approved" : "Approved Leave Submitted",
@@ -188,7 +210,7 @@ export default function LeaveRequests() {
     }
 
     const newRequest: LeaveRequest = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: editingId || firebaseService.generateLeaveRequestId(),
       employeeId: employee.id,
       employeeName: employee.name,
       designation: employee.designation,
@@ -200,68 +222,50 @@ export default function LeaveRequests() {
       approvedDays: requestedDaysNum,
       comments: values.comments || "",
       status: initialStatus,
-      timestamp: new Date().toISOString(),
+      timestamp: editingId ? (requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString()) : new Date().toISOString(),
       attachmentFileName: attachmentFile?.name,
-      doneBy: storage.getCurrentUserId(),
+      doneBy: firebaseService.getCurrentUserId(),
       updatedAt: new Date().toISOString(),
-      updatedBy: isAdmin ? storage.getCurrentUserId() : undefined,
+      updatedBy: isAdmin ? firebaseService.getCurrentUserId() : undefined,
     };
 
-    if (editingId) {
-      // Update existing request
-      const updatedRequest = {
-        ...newRequest,
-        id: editingId,
-        timestamp: requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString(),
-      };
-      storage.saveLeaveRequest(updatedRequest);
-      refreshData();
-      setIsDialogOpen(false);
-      setEditingId(null);
-      form.reset();
-      toast({
-        title: "Request Updated",
-        description: "Approved leave has been updated successfully.",
-      });
-    } else {
-      // Create new request
-      storage.saveLeaveRequest(newRequest);
-      refreshData();
-      setIsDialogOpen(false);
-      form.reset();
-      toast({
-        title: isAdmin ? "Leave Approved" : "Approved Leave Submitted",
-        description: isAdmin ? "Leave has been automatically approved." : "Request pending admin approval.",
-      });
-    }
+    await firebaseService.saveLeaveRequest(newRequest);
+    await refreshData();
+    setIsDialogOpen(false);
+    setEditingId(null);
+    form.reset();
+    toast({
+      title: editingId ? "Request Updated" : (isAdmin ? "Leave Approved" : "Approved Leave Submitted"),
+      description: editingId ? "Approved leave has been updated successfully." : (isAdmin ? "Leave has been automatically approved." : "Request pending admin approval."),
+    });
   };
   
-  const handleApprove = (id: string) => {
+  const handleApprove = async (id: string) => {
     const request = requests.find(r => r.id === id);
     if (!request) return;
     
     const updatedRequest = { ...request };
     updatedRequest.status = "Approved";
-    updatedRequest.updatedBy = storage.getCurrentUserId();
+    updatedRequest.updatedBy = firebaseService.getCurrentUserId();
     updatedRequest.updatedAt = new Date().toISOString();
-    storage.saveLeaveRequest(updatedRequest);
-    refreshData();
+    await firebaseService.saveLeaveRequest(updatedRequest);
+    await refreshData();
     toast({
       title: "Request Approved",
       description: `Approved leave for ${request.employeeName} has been approved.`,
     });
   };
   
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
     const request = requests.find(r => r.id === id);
     if (!request) return;
     
     const updatedRequest = { ...request };
     updatedRequest.status = "Rejected";
-    updatedRequest.updatedBy = storage.getCurrentUserId();
+    updatedRequest.updatedBy = firebaseService.getCurrentUserId();
     updatedRequest.updatedAt = new Date().toISOString();
-    storage.saveLeaveRequest(updatedRequest);
-    refreshData();
+    await firebaseService.saveLeaveRequest(updatedRequest);
+    await refreshData();
     toast({
       title: "Request Rejected",
       description: `Approved leave for ${request.employeeName} has been rejected.`,
@@ -288,13 +292,13 @@ export default function LeaveRequests() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const request = requests.find(r => r.id === id);
     if (!request) return;
 
     if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
-      storage.deleteLeaveRequest(id);
-      refreshData();
+      await firebaseService.deleteLeaveRequest(id);
+      await refreshData();
       setSelectedIds(prev => {
         const newSet = new Set(prev);
         newSet.delete(id);
@@ -307,11 +311,11 @@ export default function LeaveRequests() {
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     if (confirm(`Are you sure you want to delete ${selectedIds.size} leave request(s)?`)) {
-      selectedIds.forEach(id => storage.deleteLeaveRequest(id));
-      refreshData();
+      await firebaseService.deleteLeaveRequests(Array.from(selectedIds));
+      await refreshData();
       setSelectedIds(new Set());
       toast({
         title: "Requests Deleted",
@@ -356,16 +360,13 @@ export default function LeaveRequests() {
     
     return matchesSearch && matchesEmployee && matchesStartDate && matchesEndDate && matchesStatus && matchesLeaveType;
   }).sort((a, b) => {
-    // Pending first, then Approved, then Rejected
     if (a.status === "Pending" && b.status !== "Pending") return -1;
     if (a.status !== "Pending" && b.status === "Pending") return 1;
     if (a.status === "Approved" && b.status === "Rejected") return -1;
     if (a.status === "Rejected" && b.status === "Approved") return 1;
-    // Same status - sort by start date
     return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
   });
 
-  // Pagination logic
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -389,7 +390,6 @@ export default function LeaveRequests() {
       return;
     }
 
-    // Generate descriptive title for what we're downloading
     const uniqueEmployees = Array.from(new Set(filteredRequests.map(r => r.employeeName)));
     const dateRange = filteredRequests.length > 0 
       ? `${format(new Date(Math.min(...filteredRequests.map(r => new Date(r.startDate).getTime()))), "MMM d, yyyy")} to ${format(new Date(Math.max(...filteredRequests.map(r => new Date(r.endDate).getTime()))), "MMM d, yyyy")}`
@@ -409,33 +409,28 @@ export default function LeaveRequests() {
       const pageWidth = doc.internal.pageSize.getWidth();
       let yPosition = 15;
 
-      // Department Header
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.text("Department of Films & Publications", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 7;
 
-      // Address
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       doc.text("112 Circuit House Rd, Dhaka 1205", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 12;
 
-      // Report Title
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
       doc.text("Approved Leave Report", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 8;
 
-      // Generated Date
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
       doc.text(`Total Records: ${filteredRequests.length}`, pageWidth - 15, yPosition, { align: "right" });
       yPosition += 6;
 
-      // Filter information
       doc.setFontSize(9);
       if (startDateFilter || endDateFilter) {
         const dateRangeText = startDateFilter && endDateFilter 
@@ -453,18 +448,15 @@ export default function LeaveRequests() {
       }
       yPosition += 3;
 
-      // Thin border line with 50% transparency
       doc.setDrawColor(128, 128, 128);
       doc.setLineWidth(0.3);
       doc.line(15, yPosition, pageWidth - 15, yPosition);
       yPosition += 8;
 
-      // Create colorful table
       const colWidths = [30, 25, 30, 30, 15, 20];
       const startX = 15;
       let currentY = yPosition;
 
-      // Table Header
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 0, 0);
       const headers = ["Employee", "Leave Type", "Start Date", "End Date", "Days", "Status"];
@@ -476,12 +468,10 @@ export default function LeaveRequests() {
         currentX += colWidths[i];
       });
 
-      // Reset text color for data
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
       currentY += 8;
       
-      // Table Data
       doc.setTextColor(0, 0, 0);
       filteredRequests.forEach((r) => {
         const rowData = [
@@ -502,7 +492,6 @@ export default function LeaveRequests() {
 
         currentY += 6;
 
-        // Check for page break
         if (currentY > 270) {
           doc.addPage();
           currentY = 15;
@@ -614,9 +603,7 @@ export default function LeaveRequests() {
                         </FormControl>
                         <SelectContent>
                           {leaveTypes.map(type => (
-                            <SelectItem key={type.id} value={type.id}>
-                              {type.name}
-                            </SelectItem>
+                            <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -625,8 +612,8 @@ export default function LeaveRequests() {
                   )}
                 />
 
-                <div className="grid grid-cols-2 gap-4">
-                    <FormField
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField
                     control={form.control}
                     name="startDate"
                     render={({ field }) => (
@@ -638,8 +625,8 @@ export default function LeaveRequests() {
                         <FormMessage />
                         </FormItem>
                     )}
-                    />
-                    <FormField
+                  />
+                  <FormField
                     control={form.control}
                     name="endDate"
                     render={({ field }) => (
@@ -651,52 +638,53 @@ export default function LeaveRequests() {
                         <FormMessage />
                         </FormItem>
                     )}
-                    />
+                  />
+                  <FormField
+                    control={form.control}
+                    name="requestedDays"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Days</FormLabel>
+                        <FormControl>
+                            <Input type="number" placeholder="Number of days" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                  />
                 </div>
 
                 <FormField
                   control={form.control}
-                  name="requestedDays"
+                  name="comments"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Number of Days</FormLabel>
+                      <FormLabel>Comments (Optional)</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="Enter number of days" min="1" {...field} />
+                        <Textarea placeholder="Add any notes..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                
-                <FormField
-                    control={form.control}
-                    name="attachment"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Attachment - Images Only (Optional)</FormLabel>
-                            <FormControl>
-                                <div className="flex items-center gap-2">
-                                    <Input type="file" accept="image/*" className="cursor-pointer file:text-foreground" {...field} value={undefined} onChange={(e) => field.onChange(e.target.files)} />
-                                </div>
-                            </FormControl>
-                            <p className="text-xs text-muted-foreground">Supported: PNG, JPG, GIF, WebP</p>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
 
                 <FormField
-                    control={form.control}
-                    name="comments"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Comments</FormLabel>
-                        <FormControl>
-                            <Textarea placeholder="Additional comments..." className="resize-none" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
+                  control={form.control}
+                  name="attachment"
+                  render={({ field: { onChange, value, ...rest } }) => (
+                    <FormItem>
+                      <FormLabel>Attachment (Optional - Images only)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+                          onChange={(e) => onChange(e.target.files)}
+                          {...rest}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
 
                 <Button type="submit" className="w-full">
@@ -709,247 +697,205 @@ export default function LeaveRequests() {
       </div>
 
       <div className="bg-card rounded-xl border shadow-sm">
-        <div className="p-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-           <div className="relative flex-1 max-w-sm">
+        <div className="p-4 border-b flex flex-wrap items-center gap-3">
+           <div className="relative flex-1 min-w-[200px] max-w-sm">
              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
              <Input 
-                placeholder="Search requests..." 
+                placeholder="Search by name..." 
                 className="pl-9 bg-muted/30" 
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
              />
            </div>
+           
+           <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
+             <SelectTrigger className="w-[140px]">
+               <SelectValue placeholder="Status" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="all-statuses">All Status</SelectItem>
+               <SelectItem value="Pending">Pending</SelectItem>
+               <SelectItem value="Approved">Approved</SelectItem>
+               <SelectItem value="Rejected">Rejected</SelectItem>
+             </SelectContent>
+           </Select>
 
-           <div className="flex gap-2">
-            <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-filter-date">
-                    <Filter className="mr-2 h-4 w-4" /> Filter
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Filter Approved Leave</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Employee</label>
-                    <Select value={employeeFilterId} onValueChange={setEmployeeFilterId}>
-                      <SelectTrigger className="mt-1.5">
-                        <SelectValue placeholder="All employees" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all-employees">All Employees</SelectItem>
-                        {employees.map(emp => (
-                          <SelectItem key={emp.id} value={emp.id}>
-                            {emp.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+           <Select value={leaveTypeFilter} onValueChange={(v) => { setLeaveTypeFilter(v); setCurrentPage(1); }}>
+             <SelectTrigger className="w-[160px]">
+               <SelectValue placeholder="Leave Type" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="all-leave-types">All Leave Types</SelectItem>
+               {leaveTypes.map(type => (
+                 <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+               ))}
+             </SelectContent>
+           </Select>
 
-                  <div>
-                    <label className="text-sm font-medium">Status</label>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="mt-1.5">
-                        <SelectValue placeholder="All statuses" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all-statuses">All Statuses</SelectItem>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="Approved">Approved</SelectItem>
-                        <SelectItem value="Rejected">Rejected</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+           <Input 
+             type="date" 
+             className="w-[150px]" 
+             value={startDateFilter}
+             onChange={(e) => { setStartDateFilter(e.target.value); setCurrentPage(1); }}
+             placeholder="From"
+           />
+           <Input 
+             type="date" 
+             className="w-[150px]" 
+             value={endDateFilter}
+             onChange={(e) => { setEndDateFilter(e.target.value); setCurrentPage(1); }}
+             placeholder="To"
+           />
 
-                  <div>
-                    <label className="text-sm font-medium">Leave Type</label>
-                    <Select value={leaveTypeFilter} onValueChange={setLeaveTypeFilter}>
-                      <SelectTrigger className="mt-1.5">
-                        <SelectValue placeholder="All leave types" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all-leave-types">All Leave Types</SelectItem>
-                        {leaveTypes.map(type => (
-                          <SelectItem key={type.id} value={type.id}>
-                            {type.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+           {(searchTerm || statusFilter !== "all-statuses" || leaveTypeFilter !== "all-leave-types" || startDateFilter || endDateFilter) && (
+             <Button variant="ghost" size="sm" onClick={() => {
+               setSearchTerm("");
+               setStatusFilter("all-statuses");
+               setLeaveTypeFilter("all-leave-types");
+               setStartDateFilter("");
+               setEndDateFilter("");
+               setCurrentPage(1);
+             }}>
+               <X className="h-4 w-4 mr-1" /> Clear
+             </Button>
+           )}
 
-                  <div>
-                    <label className="text-sm font-medium">Start Date From</label>
-                    <Input 
-                      type="date"
-                      value={startDateFilter}
-                      onChange={(e) => setStartDateFilter(e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">End Date To</label>
-                    <Input 
-                      type="date"
-                      value={endDateFilter}
-                      onChange={(e) => setEndDateFilter(e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        setEmployeeFilterId("all-employees");
-                        setStatusFilter("all-statuses");
-                        setLeaveTypeFilter("all-leave-types");
-                        setStartDateFilter("");
-                        setEndDateFilter("");
-                      }}
-                    >
-                      Clear Filters
-                    </Button>
-                    <Button 
-                      className="flex-1"
-                      onClick={() => setIsFilterDialogOpen(false)}
-                    >
-                      Apply
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Button variant="outline" size="sm" onClick={downloadPDF}>
-              <Download className="mr-2 h-4 w-4" /> Download PDF
-            </Button>
-            {selectedIds.size > 0 && (
-              <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-                <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedIds.size})
-              </Button>
-            )}
-           </div>
-           <div className="text-sm text-muted-foreground">
-             Total: {filteredRequests.length}
+           <div className="flex items-center gap-2 ml-auto">
+             {selectedIds.size > 0 && (
+               <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                 <Trash2 className="mr-2 h-4 w-4" /> Delete ({selectedIds.size})
+               </Button>
+             )}
+             <Button variant="outline" size="sm" onClick={downloadPDF}>
+               <Download className="mr-2 h-4 w-4" /> Export PDF
+             </Button>
            </div>
         </div>
 
         <Table>
             <TableHeader>
-            <TableRow className="bg-muted/30">
+            <TableRow className="bg-muted/30 hover:bg-muted/30">
                 <TableHead className="w-12">
                   <Checkbox
                     checked={paginatedRequests.length > 0 && selectedIds.size === paginatedRequests.length}
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
-                <TableHead>Employee Name</TableHead>
+                <TableHead>Employee</TableHead>
                 <TableHead>Leave Type</TableHead>
-                <TableHead className="text-sm">Date Range</TableHead>
-                <TableHead>Days</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Comments</TableHead>
-                <TableHead>Submitted By</TableHead>
-                <TableHead>Approved By</TableHead>
+                <TableHead>Period</TableHead>
+                <TableHead className="text-center">Days</TableHead>
+                <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
             </TableRow>
             </TableHeader>
             <TableBody>
-            {paginatedRequests.map((request) => (
-                <TableRow key={request.id}>
+            {paginatedRequests.length === 0 ? (
+                <TableRow>
+                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                        No leave requests found
+                    </TableCell>
+                </TableRow>
+            ) : (
+                paginatedRequests.map((request) => (
+                    <TableRow key={request.id} className="group">
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.has(request.id)}
                         onCheckedChange={() => toggleSelect(request.id)}
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{request.employeeName}</TableCell>
                     <TableCell>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">
+                        <div>
+                            <div className="font-medium">{request.employeeName}</div>
+                            <div className="text-xs text-muted-foreground">{request.designation}</div>
+                        </div>
+                    </TableCell>
+                    <TableCell>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                             {request.leaveTypeName}
                         </span>
                     </TableCell>
                     <TableCell className="text-sm">
                         {format(new Date(request.startDate), "MMM d")} - {format(new Date(request.endDate), "MMM d, yyyy")}
                     </TableCell>
-                    <TableCell className="font-medium">{request.approvedDays}</TableCell>
-                    <TableCell>
-                      {request.status === 'Approved' ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
-                          Approved
+                    <TableCell className="text-center font-medium">{request.approvedDays}</TableCell>
+                    <TableCell className="text-center">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            request.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                            request.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                        }`}>
+                            {request.status}
                         </span>
-                      ) : request.status === 'Rejected' ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded text-xs font-medium bg-red-100 text-red-700">
-                          Rejected
-                        </span>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
-                            Pending
-                          </span>
-                          {currentUser?.role === 'Admin' && (
-                            <>
-                              <Button 
-                                size="sm" 
-                                variant="ghost"
-                                className="h-6 w-6 p-0 bg-green-100 hover:bg-green-200 text-green-700"
-                                onClick={() => handleApprove(request.id)}
-                                title="Approve"
-                              >
-                                <CheckCircle className="h-3 w-3" />
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="ghost"
-                                className="h-6 w-6 p-0 bg-red-100 hover:bg-red-200 text-red-700"
-                                onClick={() => handleReject(request.id)}
-                                title="Reject"
-                              >
-                                <XCircle className="h-3 w-3" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm max-w-[200px]">
-                        <span className="truncate block" title={request.comments}>{request.comments || "-"}</span>
-                    </TableCell>
-                    <TableCell className="text-sm">{storage.getUserName(request.doneBy)}</TableCell>
-                    <TableCell className="text-sm">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Dialog>
-                          <DialogTrigger asChild>
+                        {request.status === 'Pending' && currentUser?.role === 'Admin' && (
+                          <>
                             <Button 
                               size="sm" 
                               variant="ghost"
-                              className="text-primary hover:text-primary/80 hover:bg-primary/10"
-                              title="View Details"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => handleApprove(request.id)}
+                              title="Approve"
                             >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleReject(request.id)}
+                              title="Reject"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="ghost" title="View Details">
                               <Eye className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                          <DialogContent className="max-w-lg">
                             <DialogHeader>
                               <DialogTitle>Leave Request Details</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-4">
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="p-3 bg-muted/30 rounded-lg">
-                                  <p className="text-xs text-muted-foreground uppercase">Employee Name</p>
+                                  <p className="text-xs text-muted-foreground uppercase">Employee</p>
                                   <p className="font-medium text-foreground">{request.employeeName}</p>
                                 </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Department</p>
+                                  <p className="font-medium text-foreground">{request.department}</p>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Leave Type</p>
                                   <p className="font-medium text-foreground">{request.leaveTypeName}</p>
                                 </div>
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                  <p className="text-xs text-muted-foreground uppercase">Status</p>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                      request.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                                      request.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                                      'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                      {request.status}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-4">
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Start Date</p>
                                   <p className="font-medium text-foreground">{format(new Date(request.startDate), "PPP")}</p>
@@ -958,26 +904,16 @@ export default function LeaveRequests() {
                                   <p className="text-xs text-muted-foreground uppercase">End Date</p>
                                   <p className="font-medium text-foreground">{format(new Date(request.endDate), "PPP")}</p>
                                 </div>
-                                <div className="p-3 bg-muted/30 rounded-lg">
+                                <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
                                   <p className="text-xs text-muted-foreground uppercase">Days</p>
-                                  <p className="font-medium text-foreground">{request.approvedDays} day(s)</p>
-                                </div>
-                                <div className="p-3 bg-muted/30 rounded-lg">
-                                  <p className="text-xs text-muted-foreground uppercase">Status</p>
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                    request.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                                    request.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                                    'bg-yellow-100 text-yellow-700'
-                                  }`}>
-                                    {request.status}
-                                  </span>
+                                  <p className="font-bold text-primary text-lg">{request.approvedDays}</p>
                                 </div>
                               </div>
 
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Submitted By</p>
-                                  <p className="font-medium text-foreground">{storage.getUserName(request.doneBy)}</p>
+                                  <p className="font-medium text-foreground">{getUserName(request.doneBy)}</p>
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Submitted At</p>
@@ -985,7 +921,7 @@ export default function LeaveRequests() {
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Approved/Rejected By</p>
-                                  <p className="font-medium text-foreground">{request.updatedBy ? storage.getUserName(request.updatedBy) : "-"}</p>
+                                  <p className="font-medium text-foreground">{request.updatedBy ? getUserName(request.updatedBy) : "-"}</p>
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Approved/Rejected At</p>
@@ -998,11 +934,11 @@ export default function LeaveRequests() {
                                 <p className="text-foreground">{request.comments || "No comments"}</p>
                               </div>
 
-                              {request.attachmentBase64 && (
+                              {request.attachmentUrl && (
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase mb-2">Attachment</p>
                                   <img 
-                                    src={request.attachmentBase64} 
+                                    src={request.attachmentUrl} 
                                     alt={request.attachmentFileName || "Attachment"} 
                                     className="w-full max-h-64 object-contain rounded-lg border"
                                   />
@@ -1037,7 +973,8 @@ export default function LeaveRequests() {
                       </div>
                     </TableCell>
                     </TableRow>
-                ))}
+                ))
+            )}
             </TableBody>
         </Table>
 

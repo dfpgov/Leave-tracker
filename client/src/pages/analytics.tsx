@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { storage } from "@/lib/storage";
+import { firebaseService } from "@/lib/firebaseStorage";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,24 +21,30 @@ export default function Analytics() {
   const [topLeaveTakers, setTopLeaveTakers] = useState<any[]>([]);
   const [monthlyLeaveData, setMonthlyLeaveData] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
 
   useEffect(() => {
-    const allEmployees = storage.getEmployees();
-    setEmployees(allEmployees.sort((a, b) => a.name.localeCompare(b.name)));
+    async function loadData() {
+      const [allEmployees, allRequests] = await Promise.all([
+        firebaseService.getEmployees(),
+        firebaseService.getLeaveRequests()
+      ]);
+      setEmployees(allEmployees.sort((a, b) => a.name.localeCompare(b.name)));
+      setRequests(allRequests);
+    }
+    loadData();
   }, []);
 
   useEffect(() => {
-    const requests = storage.getLeaveRequests().filter(r => r.status === 'Approved');
-    const allEmployees = storage.getEmployees();
+    const approvedRequests = requests.filter(r => r.status === 'Approved');
 
-    // Calculate top leave takers
     const leaveTotals: Record<string, { name: string; days: number }> = {};
-    requests.forEach(r => {
+    approvedRequests.forEach(r => {
       if (!leaveTotals[r.employeeId]) {
-        const emp = allEmployees.find(e => e.id === r.employeeId);
+        const emp = employees.find(e => e.id === r.employeeId);
         leaveTotals[r.employeeId] = { name: emp?.name || 'Unknown', days: 0 };
       }
       leaveTotals[r.employeeId].days += r.approvedDays;
@@ -49,15 +55,13 @@ export default function Analytics() {
       .slice(0, 10);
     setTopLeaveTakers(sortedLeaveTakers);
 
-    // Calculate monthly leave trends (last 12 months)
     const today = new Date();
     const twelveMonthsAgo = subMonths(today, 11);
     const months = eachMonthOfInterval({ start: twelveMonthsAgo, end: today });
 
-    // Filter by selected employee
     const filteredRequests = selectedEmployee === "all" 
-      ? requests 
-      : requests.filter(r => r.employeeId === selectedEmployee);
+      ? approvedRequests 
+      : approvedRequests.filter(r => r.employeeId === selectedEmployee);
 
     const monthlyData = months.map(month => {
       const monthStart = startOfMonth(month);
@@ -81,9 +85,8 @@ export default function Analytics() {
     });
 
     setMonthlyLeaveData(monthlyData);
-  }, [selectedEmployee]);
+  }, [selectedEmployee, requests, employees]);
 
-  // Find peak month
   const peakMonth = monthlyLeaveData.reduce((max, curr) => 
     curr.totalDays > (max?.totalDays || 0) ? curr : max, 
     monthlyLeaveData[0]

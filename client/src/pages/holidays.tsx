@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { storage, Holiday, calculateDays } from "@/lib/storage";
+import { firebaseService, Holiday, calculateDays } from "@/lib/firebaseStorage";
 import {
   Table,
   TableBody,
@@ -53,20 +53,26 @@ export default function Holidays() {
   });
 
   useEffect(() => {
-    setHolidays(storage.getHolidays());
+    async function loadData() {
+      const data = await firebaseService.getHolidays();
+      setHolidays(data);
+    }
+    loadData();
   }, []);
 
-  const onSubmit = (values: z.infer<typeof holidaySchema>) => {
+  const onSubmit = async (values: z.infer<typeof holidaySchema>) => {
     const totalDays = calculateDays(values.startDate, values.endDate);
     
     const newHoliday: Holiday = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: firebaseService.generateHolidayId(),
       ...values,
       totalDays,
+      doneBy: firebaseService.getCurrentUserId(),
     };
 
-    storage.saveHoliday(newHoliday);
-    setHolidays(storage.getHolidays());
+    await firebaseService.saveHoliday(newHoliday);
+    const data = await firebaseService.getHolidays();
+    setHolidays(data);
     setIsDialogOpen(false);
     form.reset();
     toast({
@@ -75,10 +81,11 @@ export default function Holidays() {
     });
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Delete this holiday?")) {
-      storage.deleteHoliday(id);
-      setHolidays(storage.getHolidays());
+      await firebaseService.deleteHoliday(id);
+      const data = await firebaseService.getHolidays();
+      setHolidays(data);
     }
   };
 

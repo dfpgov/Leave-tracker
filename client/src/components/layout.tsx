@@ -14,7 +14,7 @@ import {
   User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { storage } from "@/lib/storage";
+import { firebaseService } from "@/lib/firebaseStorage";
 import logoImg from "@/assets/logo.png";
 
 interface LayoutProps {
@@ -23,12 +23,12 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  const currentUser = storage.getCurrentUser();
+  const currentUser = firebaseService.getCurrentUser();
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
-    const updatePendingCount = () => {
-      const requests = storage.getLeaveRequests();
+    const updatePendingCount = async () => {
+      const requests = await firebaseService.getLeaveRequests();
       const pending = requests.filter(r => r.status === 'Pending').length;
       setPendingCount(pending);
     };
@@ -38,7 +38,7 @@ export default function Layout({ children }: LayoutProps) {
   }, []);
 
   const handleLogout = () => {
-    storage.logout();
+    firebaseService.logout();
     window.location.href = "/login";
   };
 
