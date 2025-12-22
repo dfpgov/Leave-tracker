@@ -41,7 +41,6 @@ import { format } from "date-fns";
 
 const userSchema = z.object({
   name: z.string().min(1, "Username is required"),
-  email: z.string().email("Valid email is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["Admin", "CoAdmin"]),
 });
@@ -56,7 +55,6 @@ export default function UserManagement() {
     resolver: zodResolver(userSchema),
     defaultValues: {
       name: "",
-      email: "",
       password: "",
       role: "CoAdmin",
     },
@@ -94,13 +92,7 @@ export default function UserManagement() {
     
     toast({
       title: "User Created",
-      description: `${values.name} (${values.email}) has been added as ${values.role}.`,
-    });
-    
-    toast({
-      title: "Email Credentials",
-      description: `Username: ${values.name} | Password: ${values.password}\n(In a real system, this would be sent via email to ${values.email})`,
-      variant: "default",
+      description: `${values.name} has been added as ${values.role}.`,
     });
   };
 
@@ -153,19 +145,6 @@ export default function UserManagement() {
                       <FormLabel>Username</FormLabel>
                       <FormControl>
                         <Input placeholder="john.doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email Address</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="john@example.com" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
