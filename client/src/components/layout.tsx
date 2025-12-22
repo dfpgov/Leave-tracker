@@ -46,8 +46,8 @@ export default function Layout({ children }: LayoutProps) {
     setIsMobileMenuOpen(false);
   }, [location]);
 
-  const handleLogout = async () => {
-    await firebaseService.logout();
+  const handleLogout = () => {
+    firebaseService.logout();
     window.location.href = "/login";
   };
 

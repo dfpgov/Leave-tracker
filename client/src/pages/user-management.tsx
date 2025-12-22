@@ -84,29 +84,25 @@ export default function UserManagement() {
 
   const onSubmit = async (values: z.infer<typeof userSchema>) => {
     try {
-      // Create user in Firebase Authentication
-      const authResponse = await fetch('/api/create-auth-user', {
+      // Hash the password before saving
+      const hashResponse = await fetch('/api/hash-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: values.name, 
-          password: values.password 
-        }),
+        body: JSON.stringify({ password: values.password }),
       });
       
-      if (!authResponse.ok) {
-        const error = await authResponse.json();
-        throw new Error(error.error || 'Failed to create user');
+      if (!hashResponse.ok) {
+        throw new Error('Failed to secure password');
       }
       
-      const { uid } = await authResponse.json();
+      const { hashedPassword } = await hashResponse.json();
       
       const newUser: User = {
         id: firebaseService.generateUserId(),
         name: values.name,
+        password: hashedPassword,
         role: values.role,
         createdAt: new Date().toISOString(),
-        firebaseUid: uid,
       };
 
       await firebaseService.saveUser(newUser);
@@ -119,10 +115,10 @@ export default function UserManagement() {
         title: "User Created",
         description: `${values.name} has been added as ${values.role}.`,
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create user. Please try again.",
+        description: "Failed to create user. Please try again.",
         variant: "destructive",
       });
     }
