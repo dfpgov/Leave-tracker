@@ -152,8 +152,14 @@ export const firebaseService = {
     if (currentUser) return currentUser;
     const stored = localStorage.getItem('lms_current_user');
     if (stored) {
-      currentUser = JSON.parse(stored);
-      return currentUser;
+      try {
+        currentUser = JSON.parse(stored);
+        return currentUser;
+      } catch (e) {
+        // Invalid JSON in localStorage, clear it
+        localStorage.removeItem('lms_current_user');
+        return null;
+      }
     }
     return null;
   },
