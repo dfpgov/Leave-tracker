@@ -190,10 +190,10 @@ export default function LeaveRequests() {
           status: initialStatus,
           timestamp: editingId ? (requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString()) : new Date().toISOString(),
           attachmentFileName: attachmentFile.name,
-          attachmentUrl: attachmentUrl,
+          attachmentUrl: attachmentUrl || "",
           doneBy: firebaseService.getCurrentUserId(),
           updatedAt: new Date().toISOString(),
-          updatedBy: isAdmin ? firebaseService.getCurrentUserId() : undefined,
+          updatedBy: isAdmin ? firebaseService.getCurrentUserId() : "",
         };
         await firebaseService.saveLeaveRequest(newReq);
         await refreshData();
@@ -223,10 +223,11 @@ export default function LeaveRequests() {
       comments: values.comments || "",
       status: initialStatus,
       timestamp: editingId ? (requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString()) : new Date().toISOString(),
-      attachmentFileName: attachmentFile?.name,
+      attachmentFileName: "",
+      attachmentUrl: "",
       doneBy: firebaseService.getCurrentUserId(),
       updatedAt: new Date().toISOString(),
-      updatedBy: isAdmin ? firebaseService.getCurrentUserId() : undefined,
+      updatedBy: isAdmin ? firebaseService.getCurrentUserId() : "",
     };
 
     await firebaseService.saveLeaveRequest(newRequest);
