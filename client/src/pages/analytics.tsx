@@ -256,10 +256,11 @@ export default function Analytics() {
                                     />
                                     <YAxis />
                                     <Tooltip 
-                                        formatter={(value: number, name: string) => [
-                                            `${value} ${name === 'totalDays' ? 'days' : name === 'employees' ? 'employees' : 'Days'}`,
-                                            name === 'totalDays' ? 'Leave Days' : name === 'employees' ? 'Employees' : 'Requests'
-                                        ]}
+                                        formatter={(value: number, name: string) => {
+                                            if (name === 'Days') return [`${value} days`, 'Leave Days'];
+                                            if (name === 'Requests') return [`${value} requests`, 'Requests'];
+                                            return [value, name];
+                                        }}
                                         labelFormatter={(label) => {
                                             const item = monthlyLeaveData.find(d => d.shortMonth === label);
                                             return item?.month || label;
@@ -276,7 +277,7 @@ export default function Analytics() {
                                         stroke="hsl(var(--primary))" 
                                         strokeWidth={2}
                                         dot={{ fill: 'hsl(var(--primary))' }}
-                                        name="Leave Days"
+                                        name="Days"
                                     />
                                     <Line 
                                         type="monotone" 
