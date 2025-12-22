@@ -257,7 +257,7 @@ export default function Analytics() {
                                     <YAxis />
                                     <Tooltip 
                                         formatter={(value: number, name: string) => [
-                                            `${value} ${name === 'totalDays' ? 'days' : name === 'employees' ? 'employees' : 'requests'}`,
+                                            `${value} ${name === 'totalDays' ? 'days' : name === 'employees' ? 'employees' : 'Days'}`,
                                             name === 'totalDays' ? 'Leave Days' : name === 'employees' ? 'Employees' : 'Requests'
                                         ]}
                                         labelFormatter={(label) => {

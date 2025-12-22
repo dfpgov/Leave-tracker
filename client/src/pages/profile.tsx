@@ -1,28 +1,19 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
 import { storage, User } from "@/lib/storage";
+import { useLocation } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { User as UserIcon, Lock, Shield, Mail } from "lucide-react";
+import { User as UserIcon, Shield, Lock, Save } from "lucide-react";
 
 export default function Profile() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [password, setPassword] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -33,185 +24,182 @@ export default function Profile() {
       return;
     }
     setCurrentUser(user);
+    setEditName(user.name);
   }, []);
 
-  const handlePasswordChange = () => {
-    if (!password) {
+  const handleUpdateProfile = () => {
+    if (!currentUser || !editName.trim()) return;
+
+    const updatedUser = { ...currentUser, name: editName.trim() };
+    storage.saveUser(updatedUser);
+    setCurrentUser(updatedUser);
+    setIsEditing(false);
+    toast({
+      title: "Profile Updated",
+      description: "Your name has been updated successfully.",
+    });
+  };
+
+  const handleUpdatePassword = () => {
+    if (!currentUser) return;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
       toast({
         title: "Error",
-        description: "Password cannot be empty.",
+        description: "Please fill in all password fields.",
         variant: "destructive",
       });
       return;
     }
+
+    if (currentUser.password !== currentPassword) {
+      toast({
+        title: "Error",
+        description: "Current password is incorrect.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "New passwords do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 4 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updatedUser = { ...currentUser, password: newPassword };
+    storage.saveUser(updatedUser);
+    setCurrentUser(updatedUser);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
     toast({
       title: "Password Updated",
       description: "Your password has been changed successfully.",
-    });
-    setPassword("");
-  };
-
-  const handleForgotPassword = () => {
-    toast({
-      title: "Password Reset Link Sent",
-      description: "Check your email for password reset instructions.",
     });
   };
 
   if (!currentUser) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-3xl font-bold font-heading">Profile & Settings</h1>
-        <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
+        <h1 className="text-3xl font-bold font-heading">Profile</h1>
+        <p className="text-muted-foreground mt-1">Manage your account settings</p>
       </div>
 
-      <Card className="border-2">
+      <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-              <UserIcon className="w-8 h-8 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl">{currentUser.name}</CardTitle>
-              <CardDescription className="flex items-center gap-2 mt-1">
-                <Shield className="w-4 h-4" />
-                {currentUser.role} User
-              </CardDescription>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                <UserIcon className="w-8 h-8 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">{currentUser.name}</CardTitle>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                  <Shield className="w-4 h-4" />
+                  {currentUser.role}
+                </div>
+              </div>
             </div>
           </div>
         </CardHeader>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Account Information</CardTitle>
-          <CardDescription>View your account details</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Name</label>
-              <div className="p-3 bg-muted/50 rounded-lg text-foreground font-medium">
-                {currentUser.name}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Role</label>
-              <div className="p-3 bg-muted/50 rounded-lg text-foreground font-medium">
-                {currentUser.role}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Email</label>
-              <div className="p-3 bg-muted/50 rounded-lg text-foreground font-medium flex items-center gap-2">
-                <Mail className="w-4 h-4" />
-                {currentUser.name.toLowerCase()}@company.com
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Member Since</label>
-              <div className="p-3 bg-muted/50 rounded-lg text-foreground font-medium">
-                {new Date(currentUser.createdAt).toLocaleDateString()}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Security Settings</CardTitle>
-          <CardDescription>Manage your password and security</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="w-full justify-start">
-                  <Lock className="mr-2 h-4 w-4" />
-                  Change Password
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Change Password</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">New Password</label>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <UserIcon className="h-4 w-4" /> User Information
+            </h3>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Username</label>
+                {isEditing ? (
+                  <div className="flex gap-2">
                     <Input
-                      type="password"
-                      placeholder="Enter new password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Enter your name"
+                      data-testid="input-edit-name"
                     />
+                    <Button onClick={handleUpdateProfile} data-testid="button-save-name">
+                      <Save className="h-4 w-4 mr-2" /> Save
+                    </Button>
+                    <Button variant="outline" onClick={() => {
+                      setIsEditing(false);
+                      setEditName(currentUser.name);
+                    }} data-testid="button-cancel-edit">
+                      Cancel
+                    </Button>
                   </div>
-                  <Button onClick={handlePasswordChange} className="w-full">
-                    Update Password
-                  </Button>
+                ) : (
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <span className="font-medium" data-testid="text-username">{currentUser.name}</span>
+                    <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} data-testid="button-edit-name">
+                      Edit
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Role</label>
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <span className="font-medium" data-testid="text-role">{currentUser.role}</span>
                 </div>
-              </DialogContent>
-            </Dialog>
-
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={handleForgotPassword}
-            >
-              <Mail className="mr-2 h-4 w-4" />
-              Forgot Password
-            </Button>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {currentUser.role === 'Admin' && (
-        <Card className="border-2 border-primary/30 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="text-lg">Admin Controls</CardTitle>
-            <CardDescription>Manage users and system settings</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Only administrators can add and delete users from the system.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Your Permissions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 text-sm">
-            {currentUser.role === 'Admin' ? (
-              <>
-                <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded text-green-700">
-                  <span>✓</span> Full system access
-                </div>
-                <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded text-green-700">
-                  <span>✓</span> Add and delete users
-                </div>
-                <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded text-green-700">
-                  <span>✓</span> Manage all operations
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded text-blue-700">
-                  <span>✓</span> Full system access to all features
-                </div>
-                <div className="flex items-center gap-2 p-2 bg-gray-500/10 rounded text-gray-700">
-                  <span>✗</span> Cannot add or delete users
-                </div>
-                <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded text-blue-700">
-                  <span>✓</span> Can manage all operational data
-                </div>
-              </>
-            )}
+          <div className="border-t pt-6 space-y-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Lock className="h-4 w-4" /> Change Password
+            </h3>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Current Password</label>
+                <Input
+                  type="password"
+                  placeholder="Enter current password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  data-testid="input-current-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Password</label>
+                <Input
+                  type="password"
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  data-testid="input-new-password"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Confirm New Password</label>
+                <Input
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  data-testid="input-confirm-password"
+                />
+              </div>
+              <Button onClick={handleUpdatePassword} className="w-full" data-testid="button-update-password">
+                Update Password
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
