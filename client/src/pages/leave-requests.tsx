@@ -353,17 +353,29 @@ export default function LeaveRequests() {
     if (!request) return;
 
     if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
-      await firebaseService.deleteLeaveRequest(id);
-      await refreshData();
-      setSelectedIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
-      });
-      toast({
-        title: "Request Deleted",
-        description: `Approved leave for ${request.employeeName} has been deleted.`,
-      });
+      setLoadingActionId(id);
+      try {
+        await firebaseService.deleteLeaveRequest(id);
+        await refreshData();
+        setSelectedIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
+        toast({
+          title: "Request Deleted",
+          description: `Approved leave for ${request.employeeName} has been deleted.`,
+        });
+      } catch (error) {
+        console.error("Error deleting request:", error);
+        toast({
+          title: "Delete Failed",
+          description: "Could not delete the leave request. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingActionId(null);
+      }
     }
   };
 
@@ -1067,9 +1079,14 @@ export default function LeaveRequests() {
                             variant="ghost"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => handleDelete(request.id)}
+                            disabled={loadingActionId === request.id}
                             title="Delete Request"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {loadingActionId === request.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
                           </Button>
                         )}
                       </div>
