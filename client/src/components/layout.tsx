@@ -11,7 +11,8 @@ import {
   LogOut,
   UserCheck,
   Shield,
-  User
+  User,
+  HardDrive
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { firebaseService } from "@/lib/firebaseStorage";
@@ -50,6 +51,7 @@ export default function Layout({ children }: LayoutProps) {
     { label: "Approved Leave", icon: FileText, href: "/leave-requests" },
     { label: "Leave Summary", icon: UserCheck, href: "/employee-leave-summary" },
     { label: "Analytics", icon: BarChart3, href: "/analytics" },
+    { label: "Storage", icon: HardDrive, href: "/storage" },
     ...(currentUser?.role === 'Admin' ? [{ label: "Users", icon: Shield, href: "/users" }] : []),
   ];
 

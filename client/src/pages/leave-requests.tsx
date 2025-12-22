@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Trash2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -72,6 +72,8 @@ export default function LeaveRequests() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
   const itemsPerPage = 50;
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -114,187 +116,217 @@ export default function LeaveRequests() {
   };
 
   const onSubmit = async (values: z.infer<typeof requestSchema>) => {
-    const employee = employees.find(e => e.id === values.employeeId);
-    const leaveType = leaveTypes.find(t => t.id === values.leaveTypeId);
-
-    if (!employee || !leaveType) return;
-
-    const requestedDaysNum = parseInt(values.requestedDays);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     
-    if (leaveType.name === "Casual Leave") {
-       const currentYear = new Date().getFullYear();
-       const usedDays = requests
-         .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved' && new Date(r.startDate).getFullYear() === currentYear)
-         .reduce((acc, curr) => acc + curr.approvedDays, 0);
-       
-       const maxDays = 20;
-       if (usedDays >= maxDays) {
-         toast({
-           title: "Cannot Add Leave",
-           description: `${employee.name} has already used all ${maxDays} Casual Leave days for this year.`,
-           variant: "destructive"
-         });
-         return;
-       }
-       
-       if (usedDays + requestedDaysNum > maxDays) {
-         toast({
-           title: "Cannot Add Leave",
-           description: `${employee.name} has ${maxDays - usedDays} Casual Leave days remaining. Requested ${requestedDaysNum} days exceeds the limit.`,
-           variant: "destructive"
-         });
-         return;
-       }
-    }
+    try {
+      const employee = employees.find(e => e.id === values.employeeId);
+      const leaveType = leaveTypes.find(t => t.id === values.leaveTypeId);
 
-    const attachmentFile = form.getValues('attachment')?.[0];
-    const isImage = attachmentFile && /^image\/(png|jpg|jpeg|gif|webp)$/.test(attachmentFile.type);
-    
-    if (attachmentFile && !isImage) {
-      toast({
-        title: "Invalid File",
-        description: "Only image files (PNG, JPG, GIF, WebP) are allowed.",
-        variant: "destructive"
-      });
-      return;
-    }
+      if (!employee || !leaveType) {
+        return;
+      }
 
-    const isAdmin = currentUser?.role === 'Admin';
-    const initialStatus = isAdmin ? "Approved" : "Pending";
+      const requestedDaysNum = parseInt(values.requestedDays);
+      
+      if (leaveType.name === "Casual Leave") {
+         const currentYear = new Date().getFullYear();
+         const usedDays = requests
+           .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved' && new Date(r.startDate).getFullYear() === currentYear)
+           .reduce((acc, curr) => acc + curr.approvedDays, 0);
+         
+         const maxDays = 20;
+         if (usedDays >= maxDays) {
+           toast({
+             title: "Cannot Add Leave",
+             description: `${employee.name} has already used all ${maxDays} Casual Leave days for this year.`,
+             variant: "destructive"
+           });
+           return;
+         }
+         
+         if (usedDays + requestedDaysNum > maxDays) {
+           toast({
+             title: "Cannot Add Leave",
+             description: `${employee.name} has ${maxDays - usedDays} Casual Leave days remaining. Requested ${requestedDaysNum} days exceeds the limit.`,
+             variant: "destructive"
+           });
+           return;
+         }
+      }
 
-    if (attachmentFile && isImage) {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target?.result as string;
-        const requestId = editingId || firebaseService.generateLeaveRequestId();
-        
-        let attachmentUrl = "";
-        try {
-          // Upload to Google Drive via server API
-          const response = await fetch('/api/upload-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              base64Data: base64,
-              fileName: `${requestId}_${attachmentFile.name}`,
-              mimeType: attachmentFile.type,
-            }),
-          });
-          
-          if (response.ok) {
-            const result = await response.json();
-            attachmentUrl = result.webContentLink || result.webViewLink;
-          } else {
-            console.error("Error uploading to Google Drive:", await response.text());
-            toast({
-              title: "Upload Warning",
-              description: "Image could not be uploaded to Drive. Leave saved without attachment.",
-              variant: "destructive"
-            });
-          }
-        } catch (error) {
-          console.error("Error uploading attachment:", error);
-        }
-
-        const newReq: LeaveRequest = {
-          id: requestId,
-          employeeId: employee.id,
-          employeeName: employee.name,
-          designation: employee.designation,
-          department: employee.department,
-          leaveTypeId: leaveType.id,
-          leaveTypeName: leaveType.name,
-          startDate: values.startDate,
-          endDate: values.endDate,
-          approvedDays: requestedDaysNum,
-          comments: values.comments || "",
-          status: initialStatus,
-          timestamp: editingId ? (requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString()) : new Date().toISOString(),
-          attachmentFileName: attachmentFile.name,
-          attachmentUrl: attachmentUrl,
-          doneBy: firebaseService.getCurrentUserId(),
-          updatedAt: new Date().toISOString(),
-          updatedBy: isAdmin ? firebaseService.getCurrentUserId() : "",
-        };
-        await firebaseService.saveLeaveRequest(newReq);
-        await refreshData();
-        setIsDialogOpen(false);
-        setEditingId(null);
-        form.reset();
+      const attachmentFile = form.getValues('attachment')?.[0];
+      const isImage = attachmentFile && /^image\/(png|jpg|jpeg|gif|webp)$/.test(attachmentFile.type);
+      
+      if (attachmentFile && !isImage) {
         toast({
-          title: isAdmin ? "Leave Approved" : "Approved Leave Submitted",
-          description: isAdmin ? "Leave has been automatically approved." : "Request pending admin approval.",
+          title: "Invalid File",
+          description: "Only image files (PNG, JPG, GIF, WebP) are allowed.",
+          variant: "destructive"
         });
+        return;
+      }
+
+      const isAdmin = currentUser?.role === 'Admin';
+      const initialStatus = isAdmin ? "Approved" : "Pending";
+
+      if (attachmentFile && isImage) {
+        await new Promise<void>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = async (e) => {
+            try {
+              const base64 = e.target?.result as string;
+              const requestId = editingId || firebaseService.generateLeaveRequestId();
+              
+              let attachmentUrl = "";
+              let fileId = "";
+              try {
+                const response = await fetch('/api/upload-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    base64Data: base64,
+                    fileName: `${requestId}_${attachmentFile.name}`,
+                    mimeType: attachmentFile.type,
+                  }),
+                });
+                
+                if (response.ok) {
+                  const result = await response.json();
+                  fileId = result.fileId || "";
+                  attachmentUrl = fileId ? `https://drive.google.com/uc?export=view&id=${fileId}` : (result.webContentLink || result.webViewLink);
+                } else {
+                  console.error("Error uploading to Google Drive:", await response.text());
+                  toast({
+                    title: "Upload Warning",
+                    description: "Image could not be uploaded to Drive. Leave saved without attachment.",
+                    variant: "destructive"
+                  });
+                }
+              } catch (error) {
+                console.error("Error uploading attachment:", error);
+              }
+
+              const newReq: LeaveRequest = {
+                id: requestId,
+                employeeId: employee.id,
+                employeeName: employee.name,
+                designation: employee.designation,
+                department: employee.department,
+                leaveTypeId: leaveType.id,
+                leaveTypeName: leaveType.name,
+                startDate: values.startDate,
+                endDate: values.endDate,
+                approvedDays: requestedDaysNum,
+                comments: values.comments || "",
+                status: initialStatus,
+                timestamp: editingId ? (requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString()) : new Date().toISOString(),
+                attachmentFileName: attachmentFile.name,
+                attachmentUrl: attachmentUrl,
+                doneBy: firebaseService.getCurrentUserId(),
+                updatedAt: new Date().toISOString(),
+                updatedBy: isAdmin ? firebaseService.getCurrentUserId() : "",
+              };
+              await firebaseService.saveLeaveRequest(newReq);
+              await refreshData();
+              setIsDialogOpen(false);
+              setEditingId(null);
+              form.reset();
+              toast({
+                title: isAdmin ? "Leave Approved" : "Approved Leave Submitted",
+                description: isAdmin ? "Leave has been automatically approved." : "Request pending admin approval.",
+              });
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(attachmentFile);
+        });
+        return;
+      }
+
+      const newRequest: LeaveRequest = {
+        id: editingId || firebaseService.generateLeaveRequestId(),
+        employeeId: employee.id,
+        employeeName: employee.name,
+        designation: employee.designation,
+        department: employee.department,
+        leaveTypeId: leaveType.id,
+        leaveTypeName: leaveType.name,
+        startDate: values.startDate,
+        endDate: values.endDate,
+        approvedDays: requestedDaysNum,
+        comments: values.comments || "",
+        status: initialStatus,
+        timestamp: editingId ? (requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString()) : new Date().toISOString(),
+        attachmentFileName: "",
+        attachmentUrl: "",
+        doneBy: firebaseService.getCurrentUserId(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: isAdmin ? firebaseService.getCurrentUserId() : "",
       };
-      reader.readAsDataURL(attachmentFile);
-      return;
+
+      await firebaseService.saveLeaveRequest(newRequest);
+      await refreshData();
+      setIsDialogOpen(false);
+      setEditingId(null);
+      form.reset();
+      toast({
+        title: editingId ? "Request Updated" : (isAdmin ? "Leave Approved" : "Approved Leave Submitted"),
+        description: editingId ? "Approved leave has been updated successfully." : (isAdmin ? "Leave has been automatically approved." : "Request pending admin approval."),
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const newRequest: LeaveRequest = {
-      id: editingId || firebaseService.generateLeaveRequestId(),
-      employeeId: employee.id,
-      employeeName: employee.name,
-      designation: employee.designation,
-      department: employee.department,
-      leaveTypeId: leaveType.id,
-      leaveTypeName: leaveType.name,
-      startDate: values.startDate,
-      endDate: values.endDate,
-      approvedDays: requestedDaysNum,
-      comments: values.comments || "",
-      status: initialStatus,
-      timestamp: editingId ? (requests.find(r => r.id === editingId)?.timestamp || new Date().toISOString()) : new Date().toISOString(),
-      attachmentFileName: "",
-      attachmentUrl: "",
-      doneBy: firebaseService.getCurrentUserId(),
-      updatedAt: new Date().toISOString(),
-      updatedBy: isAdmin ? firebaseService.getCurrentUserId() : "",
-    };
-
-    await firebaseService.saveLeaveRequest(newRequest);
-    await refreshData();
-    setIsDialogOpen(false);
-    setEditingId(null);
-    form.reset();
-    toast({
-      title: editingId ? "Request Updated" : (isAdmin ? "Leave Approved" : "Approved Leave Submitted"),
-      description: editingId ? "Approved leave has been updated successfully." : (isAdmin ? "Leave has been automatically approved." : "Request pending admin approval."),
-    });
   };
   
   const handleApprove = async (id: string) => {
-    const request = requests.find(r => r.id === id);
-    if (!request) return;
-    
-    const updatedRequest = { ...request };
-    updatedRequest.status = "Approved";
-    updatedRequest.updatedBy = firebaseService.getCurrentUserId();
-    updatedRequest.updatedAt = new Date().toISOString();
-    updatedRequest.attachmentUrl = "";
-    updatedRequest.attachmentFileName = "";
-    await firebaseService.saveLeaveRequest(updatedRequest);
-    await refreshData();
-    toast({
-      title: "Request Approved",
-      description: `Approved leave for ${request.employeeName} has been approved.`,
-    });
+    if (loadingActionId) return;
+    setLoadingActionId(id);
+    try {
+      const request = requests.find(r => r.id === id);
+      if (!request) return;
+      
+      const updatedRequest = { ...request };
+      updatedRequest.status = "Approved";
+      updatedRequest.updatedBy = firebaseService.getCurrentUserId();
+      updatedRequest.updatedAt = new Date().toISOString();
+      updatedRequest.attachmentUrl = "";
+      updatedRequest.attachmentFileName = "";
+      await firebaseService.saveLeaveRequest(updatedRequest);
+      await refreshData();
+      toast({
+        title: "Request Approved",
+        description: `Approved leave for ${request.employeeName} has been approved.`,
+      });
+    } finally {
+      setLoadingActionId(null);
+    }
   };
   
   const handleReject = async (id: string) => {
-    const request = requests.find(r => r.id === id);
-    if (!request) return;
-    
-    const updatedRequest = { ...request };
-    updatedRequest.status = "Rejected";
-    updatedRequest.updatedBy = firebaseService.getCurrentUserId();
-    updatedRequest.updatedAt = new Date().toISOString();
-    await firebaseService.saveLeaveRequest(updatedRequest);
-    await refreshData();
-    toast({
-      title: "Request Rejected",
-      description: `Approved leave for ${request.employeeName} has been rejected.`,
-      variant: "destructive",
-    });
+    if (loadingActionId) return;
+    setLoadingActionId(id);
+    try {
+      const request = requests.find(r => r.id === id);
+      if (!request) return;
+      
+      const updatedRequest = { ...request };
+      updatedRequest.status = "Rejected";
+      updatedRequest.updatedBy = firebaseService.getCurrentUserId();
+      updatedRequest.updatedAt = new Date().toISOString();
+      await firebaseService.saveLeaveRequest(updatedRequest);
+      await refreshData();
+      toast({
+        title: "Request Rejected",
+        description: `Approved leave for ${request.employeeName} has been rejected.`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingActionId(null);
+    }
   };
 
   const handleEdit = (request: LeaveRequest) => {
@@ -711,8 +743,15 @@ export default function LeaveRequests() {
                   )}
                 />
 
-                <Button type="submit" className="w-full">
-                  {editingId ? "Update Request" : "Submit Request"}
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {editingId ? "Updating..." : "Submitting..."}
+                    </>
+                  ) : (
+                    editingId ? "Update Request" : "Submit Request"
+                  )}
                 </Button>
               </form>
             </Form>
@@ -865,18 +904,28 @@ export default function LeaveRequests() {
                               variant="ghost"
                               className="text-green-600 hover:text-green-700 hover:bg-green-50"
                               onClick={() => handleApprove(request.id)}
+                              disabled={loadingActionId === request.id}
                               title="Approve"
                             >
-                              <CheckCircle className="h-4 w-4" />
+                              {loadingActionId === request.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4" />
+                              )}
                             </Button>
                             <Button 
                               size="sm" 
                               variant="ghost"
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                               onClick={() => handleReject(request.id)}
+                              disabled={loadingActionId === request.id}
                               title="Reject"
                             >
-                              <XCircle className="h-4 w-4" />
+                              {loadingActionId === request.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <XCircle className="h-4 w-4" />
+                              )}
                             </Button>
                           </>
                         )}
@@ -958,17 +1007,46 @@ export default function LeaveRequests() {
                                 <p className="text-foreground">{request.comments || "No comments"}</p>
                               </div>
 
-                              {request.attachmentUrl && (
+                              {request.attachmentUrl && (() => {
+                                const url = request.attachmentUrl;
+                                const getFileId = (driveUrl: string) => {
+                                  const idQueryMatch = driveUrl.match(/id=([^&]+)/);
+                                  if (idQueryMatch) return idQueryMatch[1];
+                                  const filePathMatch = driveUrl.match(/\/file\/d\/([^/]+)/);
+                                  if (filePathMatch) return filePathMatch[1];
+                                  return null;
+                                };
+                                const fileId = getFileId(url);
+                                const directImageUrl = fileId 
+                                  ? `https://drive.google.com/uc?export=view&id=${fileId}`
+                                  : url;
+                                
+                                return (
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase mb-2">Attachment</p>
                                   <img 
-                                    src={request.attachmentUrl} 
+                                    src={directImageUrl} 
                                     alt={request.attachmentFileName || "Attachment"} 
                                     className="w-full max-h-64 object-contain rounded-lg border"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      if (fileId && !target.src.includes('lh3.googleusercontent.com')) {
+                                        target.src = `https://lh3.googleusercontent.com/d/${fileId}`;
+                                      }
+                                    }}
                                   />
                                   <p className="text-xs text-muted-foreground mt-2">{request.attachmentFileName}</p>
+                                  <a 
+                                    href={url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    Open in new tab
+                                  </a>
                                 </div>
-                              )}
+                                );
+                              })()}
                             </div>
                           </DialogContent>
                         </Dialog>

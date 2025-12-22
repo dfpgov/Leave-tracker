@@ -15,6 +15,7 @@ import Analytics from "@/pages/analytics";
 import EmployeeLeaveSummary from "@/pages/employee-leave-summary";
 import UserManagement from "@/pages/user-management";
 import Profile from "@/pages/profile";
+import StoragePage from "@/pages/storage";
 import Layout from "@/components/layout";
 import { initializeFirebase } from "@/lib/firebase";
 import { firebaseService } from "@/lib/firebaseStorage";
@@ -62,6 +63,9 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
           </Route>
           <Route path="/profile">
             <ProtectedRoute component={Profile} />
+          </Route>
+          <Route path="/storage">
+            <ProtectedRoute component={StoragePage} />
           </Route>
         </>
       ) : null}
