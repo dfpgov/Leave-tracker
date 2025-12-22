@@ -63,7 +63,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
       <Card className="w-full max-w-md shadow-2xl border-0 overflow-hidden">
         {/* Header matching the image */}
-        <div className="bg-[#1e3a5f] text-white p-6">
+        <div className="bg-[#161F31] text-white p-6">
           <div className="flex items-center gap-4">
             {/* Logo - circular with government seal style */}
             <div className="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center flex-shrink-0 border-2 border-red-400">
@@ -126,7 +126,7 @@ export default function Login() {
 
             <Button 
               type="submit"
-              className="w-full h-12 text-lg bg-[#1e3a5f] hover:bg-[#2d4a6f]"
+              className="w-full h-12 text-lg bg-[#161F31] hover:bg-[#2d4a6f]"
               disabled={isLoading}
               data-testid="button-login"
             >
@@ -141,21 +141,6 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="pt-4 border-t">
-            <p className="text-sm text-muted-foreground text-center mb-3">
-              Default Credentials
-            </p>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="p-3 bg-muted/50 rounded-lg text-center">
-                <p className="font-semibold text-foreground">Admin</p>
-                <p className="text-muted-foreground text-xs">admin123</p>
-              </div>
-              <div className="p-3 bg-muted/50 rounded-lg text-center">
-                <p className="font-semibold text-foreground">CoAdmin</p>
-                <p className="text-muted-foreground text-xs">coadmin123</p>
-              </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
