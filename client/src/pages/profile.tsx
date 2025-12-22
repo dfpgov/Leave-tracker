@@ -5,15 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { User as UserIcon, Shield, Lock, Save } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { User as UserIcon, Shield, Lock, Save, Eye, EyeOff, AlertTriangle } from "lucide-react";
 
 export default function Profile() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -44,28 +44,10 @@ export default function Profile() {
   const handleUpdatePassword = async () => {
     if (!currentUser) return;
 
-    if (!currentPassword || !newPassword || !confirmPassword) {
+    if (!newPassword.trim()) {
       toast({
         title: "Error",
-        description: "Please fill in all password fields.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (currentUser.password !== currentPassword) {
-      toast({
-        title: "Error",
-        description: "Current password is incorrect.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "New passwords do not match.",
+        description: "Please enter a new password.",
         variant: "destructive",
       });
       return;
@@ -84,9 +66,7 @@ export default function Profile() {
     await firebaseService.saveUser(updatedUser);
     firebaseService.setCurrentUser(updatedUser);
     setCurrentUser(updatedUser);
-    setCurrentPassword("");
     setNewPassword("");
-    setConfirmPassword("");
     toast({
       title: "Password Updated",
       description: "Your password has been changed successfully.",
@@ -167,36 +147,35 @@ export default function Profile() {
             <h3 className="font-semibold flex items-center gap-2">
               <Lock className="h-4 w-4" /> Change Password
             </h3>
+            
+            <Alert variant="default" className="bg-amber-50 border-amber-200">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                Make sure to remember your new password. You will need it to log in next time.
+              </AlertDescription>
+            </Alert>
+
             <div className="space-y-3">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Current Password</label>
-                <Input
-                  type="password"
-                  placeholder="Enter current password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  data-testid="input-current-password"
-                />
-              </div>
-              <div className="space-y-2">
                 <label className="text-sm font-medium">New Password</label>
-                <Input
-                  type="password"
-                  placeholder="Enter new password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  data-testid="input-new-password"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Confirm New Password</label>
-                <Input
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  data-testid="input-confirm-password"
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter new password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pr-10"
+                    data-testid="input-new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
               <Button onClick={handleUpdatePassword} className="w-full" data-testid="button-update-password">
                 Update Password
