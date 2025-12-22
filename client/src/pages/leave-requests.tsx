@@ -935,11 +935,11 @@ export default function LeaveRequests() {
                               <Eye className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-lg">
-                            <DialogHeader>
+                          <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+                            <DialogHeader className="shrink-0">
                               <DialogTitle>Leave Request Details</DialogTitle>
                             </DialogHeader>
-                            <div className="space-y-4">
+                            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Employee</p>
