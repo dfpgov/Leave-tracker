@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { firebaseService } from "@/lib/firebaseStorage";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { HardDrive, Image, Database, AlertTriangle, Info, RefreshCw } from "lucide-react";
+import { HardDrive, Image, Database, AlertTriangle, Info, RefreshCw, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function StoragePage() {
@@ -11,12 +11,12 @@ export default function StoragePage() {
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [recordCounts, setRecordCounts] = useState({ leave: 0, employees: 0, holidays: 0, types: 0, users: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  const [isExactSize, setIsExactSize] = useState(false);
 
   const IMAGE_CAPACITY_GB = 10;
   const FIRESTORE_CAPACITY_GB = 1;
   const DATA_CAPACITY_GB = FIRESTORE_CAPACITY_GB * 0.9;
   const EMERGENCY_RESERVE_GB = FIRESTORE_CAPACITY_GB * 0.1;
-  const AVG_IMAGE_SIZE_MB = 0.5;
 
   useEffect(() => {
     calculateStorage();
@@ -24,6 +24,7 @@ export default function StoragePage() {
 
   const calculateStorage = async () => {
     setIsLoading(true);
+    setIsExactSize(false);
     try {
       const [leaveRequests, employees, holidays, leaveTypes, users] = await Promise.all([
         firebaseService.getLeaveRequests(),
@@ -33,16 +34,6 @@ export default function StoragePage() {
         firebaseService.getUsers(),
       ]);
 
-      let attachments = 0;
-      leaveRequests.forEach(req => {
-        if (req.attachmentUrl && req.attachmentUrl.length > 0) {
-          attachments++;
-        }
-      });
-      setAttachmentCount(attachments);
-      const estimatedImageBytes = attachments * AVG_IMAGE_SIZE_MB * 1024 * 1024;
-      setImageStorageUsed(estimatedImageBytes / (1024 * 1024 * 1024));
-
       setRecordCounts({
         leave: leaveRequests.length,
         employees: employees.length,
@@ -50,6 +41,39 @@ export default function StoragePage() {
         types: leaveTypes.length,
         users: users.length,
       });
+
+      // Get exact file sizes from Google Drive API
+      try {
+        const driveResponse = await fetch('/api/drive-storage');
+        if (driveResponse.ok) {
+          const driveData = await driveResponse.json();
+          setImageStorageUsed(driveData.totalBytes / (1024 * 1024 * 1024));
+          setAttachmentCount(driveData.fileCount);
+          setIsExactSize(true);
+        } else {
+          // Fallback to counting attachments
+          let attachments = 0;
+          leaveRequests.forEach(req => {
+            if (req.attachmentUrl && req.attachmentUrl.length > 0) {
+              attachments++;
+            }
+          });
+          setAttachmentCount(attachments);
+          const estimatedImageBytes = attachments * 0.5 * 1024 * 1024;
+          setImageStorageUsed(estimatedImageBytes / (1024 * 1024 * 1024));
+        }
+      } catch {
+        // Fallback to counting attachments
+        let attachments = 0;
+        leaveRequests.forEach(req => {
+          if (req.attachmentUrl && req.attachmentUrl.length > 0) {
+            attachments++;
+          }
+        });
+        setAttachmentCount(attachments);
+        const estimatedImageBytes = attachments * 0.5 * 1024 * 1024;
+        setImageStorageUsed(estimatedImageBytes / (1024 * 1024 * 1024));
+      }
 
       const allData = { leaveRequests, employees, holidays, leaveTypes, users };
       const dataString = JSON.stringify(allData);
@@ -138,13 +162,23 @@ export default function StoragePage() {
               </div>
             )}
 
-            <div className="flex items-start gap-2 p-3 bg-blue-50 text-blue-800 rounded-lg text-xs">
-              <Info className="h-4 w-4 mt-0.5 shrink-0" />
-              <div>
-                <p className="font-medium">Estimated based on {attachmentCount} attachment{attachmentCount !== 1 ? 's' : ''}</p>
-                <p className="text-blue-600">Average size: ~{AVG_IMAGE_SIZE_MB} MB per image</p>
+            {isExactSize ? (
+              <div className="flex items-start gap-2 p-3 bg-green-50 text-green-800 rounded-lg text-xs">
+                <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Exact size from Google Drive</p>
+                  <p className="text-green-600">{attachmentCount} file{attachmentCount !== 1 ? 's' : ''} in folder</p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-start gap-2 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-xs">
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Estimated based on {attachmentCount} attachment{attachmentCount !== 1 ? 's' : ''}</p>
+                  <p className="text-yellow-600">Could not fetch exact sizes from Drive</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

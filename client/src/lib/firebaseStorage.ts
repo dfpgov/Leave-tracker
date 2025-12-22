@@ -136,13 +136,39 @@ export const firebaseService = {
 
   async login(name: string, password: string): Promise<User | null> {
     const users = await this.getUsers();
-    const user = users.find(u => u.name === name && u.password === password);
-    if (user) {
-      currentUser = user;
-      localStorage.setItem('lms_current_user', JSON.stringify(user));
-      return user;
+    const user = users.find(u => u.name === name);
+    if (!user) return null;
+    
+    // Check if password is hashed (bcrypt hashes start with $2)
+    if (user.password.startsWith('$2')) {
+      // Verify hashed password via server
+      try {
+        const response = await fetch('/api/verify-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password, hashedPassword: user.password }),
+        });
+        if (response.ok) {
+          const { isValid } = await response.json();
+          if (isValid) {
+            currentUser = user;
+            localStorage.setItem('lms_current_user', JSON.stringify(user));
+            return user;
+          }
+        }
+      } catch (error) {
+        console.error('Error verifying password:', error);
+      }
+      return null;
+    } else {
+      // Legacy plain text password (backwards compatible)
+      if (user.password === password) {
+        currentUser = user;
+        localStorage.setItem('lms_current_user', JSON.stringify(user));
+        return user;
+      }
+      return null;
     }
-    return null;
   },
 
   logout(): void {

@@ -131,3 +131,43 @@ export async function deleteImageFromGoogleDrive(fileId: string): Promise<void> 
     console.error('Error deleting file from Google Drive:', error);
   }
 }
+
+export async function getFileSizes(): Promise<{ totalBytes: number; fileCount: number; files: Array<{ id: string; name: string; size: number }> }> {
+  const drive = await getUncachableGoogleDriveClient();
+  
+  if (!TARGET_FOLDER_ID) {
+    throw new Error('GOOGLE_DRIVE_FOLDER_ID environment variable is not set');
+  }
+
+  let allFiles: Array<{ id: string; name: string; size: number }> = [];
+  let pageToken: string | undefined = undefined;
+  let totalBytes = 0;
+
+  do {
+    const response: any = await drive.files.list({
+      q: `'${TARGET_FOLDER_ID}' in parents and trashed = false`,
+      fields: 'nextPageToken, files(id, name, size)',
+      pageSize: 1000,
+      pageToken: pageToken,
+    });
+
+    const files = response.data.files || [];
+    for (const file of files) {
+      const fileSize = parseInt(file.size || '0', 10);
+      totalBytes += fileSize;
+      allFiles.push({
+        id: file.id || '',
+        name: file.name || '',
+        size: fileSize,
+      });
+    }
+
+    pageToken = response.data.nextPageToken;
+  } while (pageToken);
+
+  return {
+    totalBytes,
+    fileCount: allFiles.length,
+    files: allFiles,
+  };
+}

@@ -53,24 +53,45 @@ export default function Profile() {
       return;
     }
 
-    if (newPassword.length < 4) {
+    if (newPassword.length < 6) {
       toast({
         title: "Error",
-        description: "Password must be at least 4 characters.",
+        description: "Password must be at least 6 characters.",
         variant: "destructive",
       });
       return;
     }
 
-    const updatedUser = { ...currentUser, password: newPassword };
-    await firebaseService.saveUser(updatedUser);
-    firebaseService.setCurrentUser(updatedUser);
-    setCurrentUser(updatedUser);
-    setNewPassword("");
-    toast({
-      title: "Password Updated",
-      description: "Your password has been changed successfully.",
-    });
+    try {
+      // Hash the password before saving
+      const hashResponse = await fetch('/api/hash-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      
+      if (!hashResponse.ok) {
+        throw new Error('Failed to secure password');
+      }
+      
+      const { hashedPassword } = await hashResponse.json();
+
+      const updatedUser = { ...currentUser, password: hashedPassword };
+      await firebaseService.saveUser(updatedUser);
+      firebaseService.setCurrentUser(updatedUser);
+      setCurrentUser(updatedUser);
+      setNewPassword("");
+      toast({
+        title: "Password Updated",
+        description: "Your password has been changed and secured.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update password. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (!currentUser) return null;

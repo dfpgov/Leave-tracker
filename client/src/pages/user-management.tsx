@@ -83,22 +83,45 @@ export default function UserManagement() {
   }
 
   const onSubmit = async (values: z.infer<typeof userSchema>) => {
-    const newUser: User = {
-      id: firebaseService.generateUserId(),
-      ...values,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      // Hash the password before saving
+      const hashResponse = await fetch('/api/hash-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: values.password }),
+      });
+      
+      if (!hashResponse.ok) {
+        throw new Error('Failed to secure password');
+      }
+      
+      const { hashedPassword } = await hashResponse.json();
+      
+      const newUser: User = {
+        id: firebaseService.generateUserId(),
+        name: values.name,
+        password: hashedPassword,
+        role: values.role,
+        createdAt: new Date().toISOString(),
+      };
 
-    await firebaseService.saveUser(newUser);
-    const allUsers = await firebaseService.getUsers();
-    setUsers(allUsers);
-    setIsDialogOpen(false);
-    form.reset();
-    
-    toast({
-      title: "User Created",
-      description: `${values.name} has been added as ${values.role}.`,
-    });
+      await firebaseService.saveUser(newUser);
+      const allUsers = await firebaseService.getUsers();
+      setUsers(allUsers);
+      setIsDialogOpen(false);
+      form.reset();
+      
+      toast({
+        title: "User Created",
+        description: `${values.name} has been added as ${values.role}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create user. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = async (id: string) => {

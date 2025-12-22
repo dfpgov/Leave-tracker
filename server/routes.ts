@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { uploadImageToGoogleDrive, deleteImageFromGoogleDrive } from "./googleDrive";
+import { uploadImageToGoogleDrive, deleteImageFromGoogleDrive, getFileSizes } from "./googleDrive";
+import bcrypt from "bcryptjs";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -51,6 +52,48 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error deleting from Google Drive:", error);
       res.status(500).json({ error: error.message || "Failed to delete image" });
+    }
+  });
+
+  // Get file sizes from Google Drive folder
+  app.get("/api/drive-storage", async (_req, res) => {
+    try {
+      const result = await getFileSizes();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error getting drive storage:", error);
+      res.status(500).json({ error: error.message || "Failed to get storage info" });
+    }
+  });
+
+  // Hash password endpoint
+  app.post("/api/hash-password", async (req, res) => {
+    try {
+      const { password } = req.body;
+      if (!password) {
+        return res.status(400).json({ error: "Password required" });
+      }
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      res.json({ hashedPassword });
+    } catch (error: any) {
+      console.error("Error hashing password:", error);
+      res.status(500).json({ error: error.message || "Failed to hash password" });
+    }
+  });
+
+  // Verify password endpoint
+  app.post("/api/verify-password", async (req, res) => {
+    try {
+      const { password, hashedPassword } = req.body;
+      if (!password || !hashedPassword) {
+        return res.status(400).json({ error: "Password and hashedPassword required" });
+      }
+      const isValid = await bcrypt.compare(password, hashedPassword);
+      res.json({ isValid });
+    } catch (error: any) {
+      console.error("Error verifying password:", error);
+      res.status(500).json({ error: error.message || "Failed to verify password" });
     }
   });
 
