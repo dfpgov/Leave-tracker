@@ -1,6 +1,6 @@
 {
-  "buildCommand": "cd client && npx vite build --outDir ../dist",
-  "outputDirectory": "dist",
+  "buildCommand": "npx vite build",
+  "outputDirectory": "dist/public",
   "framework": null,
   "routes": [
     { "handle": "filesystem" },
