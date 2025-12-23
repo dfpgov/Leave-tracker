@@ -4,26 +4,42 @@ import { google } from 'googleapis';
 const TARGET_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
 async function getGoogleDriveClient() {
+  console.log('🔐 [AUTH] Starting credential initialization...');
   const hasGoogleServiceAccount = !!process.env.GOOGLE_SERVICE_ACCOUNT;
   const hasEmail = !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const hasPrivateKey = !!process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
-  console.log('Auth check:', { hasGoogleServiceAccount, hasEmail, hasPrivateKey });
+  console.log('🔍 [AUTH] Checking env vars:', { hasGoogleServiceAccount, hasEmail, hasPrivateKey });
 
   let credentials: any = null;
 
   // Option 1: Try JSON service account
   if (hasGoogleServiceAccount) {
     try {
-      credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT!);
-      console.log('Using GOOGLE_SERVICE_ACCOUNT');
+      console.log('📄 [AUTH] Parsing GOOGLE_SERVICE_ACCOUNT JSON...');
+      const parsed = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT!);
+      console.log('✅ [AUTH] Successfully parsed JSON. Extracting fields:');
+      console.log('  - type:', parsed.type);
+      console.log('  - project_id:', parsed.project_id);
+      console.log('  - private_key_id:', parsed.private_key_id);
+      console.log('  - client_email:', parsed.client_email);
+      console.log('  - client_id:', parsed.client_id);
+      console.log('  - auth_uri:', parsed.auth_uri);
+      console.log('  - token_uri:', parsed.token_uri);
+      console.log('  - auth_provider_x509_cert_url:', parsed.auth_provider_x509_cert_url);
+      console.log('  - client_x509_cert_url:', parsed.client_x509_cert_url);
+      console.log('  - private_key (first 50 chars):', parsed.private_key?.substring(0, 50) + '...');
+      
+      credentials = parsed;
+      console.log('✅ [AUTH] Using GOOGLE_SERVICE_ACCOUNT (full JSON with all fields)');
     } catch (e: any) {
-      console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT:', e.message);
+      console.error('❌ [AUTH] Failed to parse GOOGLE_SERVICE_ACCOUNT:', e.message);
     }
   }
 
   // Option 2: Try individual env vars
   if (!credentials && hasEmail && hasPrivateKey) {
+    console.log('📋 [AUTH] Falling back to individual env vars...');
     let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY!;
     privateKey = privateKey.replace(/\\n/g, '\n');
     
@@ -32,11 +48,12 @@ async function getGoogleDriveClient() {
       client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!,
       private_key: privateKey,
     };
-    console.log('Using individual env vars');
+    console.log('✅ [AUTH] Using individual env vars');
   }
 
   // If still no credentials, throw detailed error
   if (!credentials) {
+    console.error('❌ [AUTH] No credentials available');
     throw new Error(
       'No Google credentials found. Set either:\n' +
       '1. GOOGLE_SERVICE_ACCOUNT (entire JSON service account)\n' +
@@ -46,14 +63,20 @@ async function getGoogleDriveClient() {
   }
 
   try {
+    console.log('🔐 [AUTH] Creating GoogleAuth with credentials...');
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/drive.file'],
     });
 
-    return google.drive({ version: 'v3', auth });
+    console.log('✅ [AUTH] GoogleAuth created successfully');
+    console.log('✅ [AUTH] Creating Google Drive client...');
+    const drive = google.drive({ version: 'v3', auth });
+    console.log('✅ [AUTH] Google Drive client ready to use');
+    return drive;
   } catch (error: any) {
-    console.error('Failed to create Google Drive client:', error.message);
+    console.error('❌ [AUTH] Failed to create Google Drive client:', error.message);
+    console.error('❌ [AUTH] Error details:', error);
     throw error;
   }
 }
