@@ -2,125 +2,91 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
-const TARGET_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+// ------------------
+// TEST CREDENTIALS
+// ------------------
+const TEST_SERVICE_ACCOUNT = {
+  "type": "service_account",
+  "project_id": "YOUR_PROJECT_ID",
+  "private_key_id": "YOUR_PRIVATE_KEY_ID",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n",
+  "client_email": "YOUR_CLIENT_EMAIL@YOUR_PROJECT.iam.gserviceaccount.com",
+  "client_id": "YOUR_CLIENT_ID",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "YOUR_CLIENT_CERT_URL"
+};
+
+// ------------------
+// Target folder ID
+// ------------------
+const TARGET_FOLDER_ID = "YOUR_FOLDER_ID"; // Drive folder ID
 
 async function getGoogleDriveClient() {
-  const hasGoogleServiceAccount = !!process.env.GOOGLE_SERVICE_ACCOUNT;
-  const hasEmail = !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const hasPrivateKey = !!process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+  const auth = new google.auth.GoogleAuth({
+    credentials: TEST_SERVICE_ACCOUNT,
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  });
 
-  let credentials: any = null;
-
-  // Option 1: Try JSON service account
-  if (hasGoogleServiceAccount) {
-    try {
-      credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT!);
-    } catch (e: any) {
-      // Continue to next option
-    }
-  }
-
-  // Option 2: Try individual env vars
-  if (!credentials && hasEmail && hasPrivateKey) {
-    let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY!;
-    privateKey = privateKey.replace(/\\n/g, '\n');
-    
-    credentials = {
-      type: 'service_account',
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!,
-      private_key: privateKey,
-    };
-  }
-
-  // If still no credentials, throw detailed error
-  if (!credentials) {
-    throw new Error(
-      'No Google credentials found. Set either:\n' +
-      '1. GOOGLE_SERVICE_ACCOUNT (entire JSON service account)\n' +
-      '2. GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY\n' +
-      `Current state: hasServiceAccount=${hasGoogleServiceAccount}, hasEmail=${hasEmail}, hasPrivateKey=${hasPrivateKey}`
-    );
-  }
-
-  try {
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
-    });
-
-    return google.drive({ version: 'v3', auth });
-  } catch (error: any) {
-    throw error;
-  }
+  return google.drive({ version: 'v3', auth });
 }
 
+// ------------------
+// API handler
+// ------------------
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Add CORS headers
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const { base64Data, fileName, mimeType } = req.body;
 
     if (!base64Data || !fileName || !mimeType) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: base64Data, fileName, mimeType' 
-      });
+      return res.status(400).json({ error: 'Missing required fields: base64Data, fileName, mimeType' });
     }
 
     if (!TARGET_FOLDER_ID) {
-      return res.status(400).json({ 
-        error: 'GOOGLE_DRIVE_FOLDER_ID environment variable not set' 
-      });
+      return res.status(400).json({ error: 'TARGET_FOLDER_ID not set' });
     }
 
     const drive = await getGoogleDriveClient();
 
-    const base64Content = base64Data.includes(',') 
-      ? base64Data.split(',')[1] 
-      : base64Data;
-
+    // Prepare file
+    const base64Content = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
     const buffer = Buffer.from(base64Content, 'base64');
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
 
+    // Upload file
     const createResponse = await drive.files.create({
       requestBody: {
         name: fileName,
         parents: [TARGET_FOLDER_ID],
       },
       media: {
-        mimeType: mimeType,
+        mimeType,
         body: stream,
       },
       fields: 'id, webViewLink, webContentLink',
     });
 
     const fileId = createResponse.data.id;
-    
-    if (!fileId) {
-      throw new Error('Failed to get file ID from Google Drive');
-    }
+    if (!fileId) throw new Error('Failed to get file ID');
 
+    // Make file public
     await drive.permissions.create({
-      fileId: fileId,
-      requestBody: {
-        role: 'reader',
-        type: 'anyone',
-      },
+      fileId,
+      requestBody: { role: 'reader', type: 'anyone' },
     });
 
     const fileResponse = await drive.files.get({
-      fileId: fileId,
+      fileId,
       fields: 'id, webViewLink, webContentLink',
     });
 
@@ -131,9 +97,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       webContentLink: fileResponse.data.webContentLink || `https://drive.google.com/uc?export=view&id=${fileId}`,
     });
   } catch (error: any) {
-    res.status(500).json({ 
-      error: error.message || 'Failed to upload image',
-      debug: process.env.NODE_ENV === 'development' ? error.toString() : undefined
-    });
+    res.status(500).json({ error: error.message });
   }
 }
