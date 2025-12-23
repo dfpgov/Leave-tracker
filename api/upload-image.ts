@@ -3,29 +3,29 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 
 // ------------------
-// TEST CREDENTIALS
+// Load env variables
 // ------------------
-const TEST_SERVICE_ACCOUNT = {
-  "type": "service_account",
-  "project_id": "YOUR_PROJECT_ID",
-  "private_key_id": "YOUR_PRIVATE_KEY_ID",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n",
-  "client_email": "YOUR_CLIENT_EMAIL@YOUR_PROJECT.iam.gserviceaccount.com",
-  "client_id": "YOUR_CLIENT_ID",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "YOUR_CLIENT_CERT_URL"
-};
+const TARGET_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
+
+if (!GOOGLE_SERVICE_ACCOUNT) console.warn("⚠️ GOOGLE_SERVICE_ACCOUNT env var not set");
+if (!TARGET_FOLDER_ID) console.warn("⚠️ GOOGLE_DRIVE_FOLDER_ID env var not set");
 
 // ------------------
-// Target folder ID
+// Create Google Drive client
 // ------------------
-const TARGET_FOLDER_ID = "YOUR_FOLDER_ID"; // Drive folder ID
+async function getDriveClient() {
+  if (!GOOGLE_SERVICE_ACCOUNT) throw new Error("No Google credentials found");
 
-async function getGoogleDriveClient() {
+  let credentials;
+  try {
+    credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
+  } catch (err) {
+    throw new Error("Failed to parse GOOGLE_SERVICE_ACCOUNT JSON: " + (err as any).message);
+  }
+
   const auth = new google.auth.GoogleAuth({
-    credentials: TEST_SERVICE_ACCOUNT,
+    credentials,
     scopes: ['https://www.googleapis.com/auth/drive.file'],
   });
 
@@ -36,7 +36,9 @@ async function getGoogleDriveClient() {
 // API handler
 // ------------------
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // ------------------
   // CORS headers
+  // ------------------
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
 
@@ -49,21 +51,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!base64Data || !fileName || !mimeType) {
       return res.status(400).json({ error: 'Missing required fields: base64Data, fileName, mimeType' });
     }
-
     if (!TARGET_FOLDER_ID) {
       return res.status(400).json({ error: 'TARGET_FOLDER_ID not set' });
     }
 
-    const drive = await getGoogleDriveClient();
+    const drive = await getDriveClient();
+    console.log("✅ Google Drive client initialized");
 
+    // ------------------
     // Prepare file
+    // ------------------
     const base64Content = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
     const buffer = Buffer.from(base64Content, 'base64');
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
 
+    // ------------------
     // Upload file
+    // ------------------
     const createResponse = await drive.files.create({
       requestBody: {
         name: fileName,
@@ -79,24 +85,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const fileId = createResponse.data.id;
     if (!fileId) throw new Error('Failed to get file ID');
 
+    // ------------------
     // Make file public
+    // ------------------
     await drive.permissions.create({
       fileId,
       requestBody: { role: 'reader', type: 'anyone' },
     });
 
-    const fileResponse = await drive.files.get({
+    const fileInfo = await drive.files.get({
       fileId,
       fields: 'id, webViewLink, webContentLink',
     });
 
+    console.log("✅ File uploaded:", fileInfo.data);
+
     res.json({
       success: true,
-      fileId: fileResponse.data.id || fileId,
-      webViewLink: fileResponse.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`,
-      webContentLink: fileResponse.data.webContentLink || `https://drive.google.com/uc?export=view&id=${fileId}`,
+      fileId: fileInfo.data.id || fileId,
+      webViewLink: fileInfo.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`,
+      webContentLink: fileInfo.data.webContentLink || `https://drive.google.com/uc?export=view&id=${fileId}`,
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (err: any) {
+    console.error("❌ Upload error:", err);
+    res.status(500).json({ error: err.message });
   }
 }
