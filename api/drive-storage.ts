@@ -59,32 +59,43 @@ async function getGoogleDriveClient() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('📂 [STORAGE] Request received:', { method: req.method });
+  
   // Add CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
   if (req.method === 'OPTIONS') {
+    console.log('✅ [STORAGE] OPTIONS request handled');
     return res.status(200).end();
   }
 
   if (req.method !== 'GET') {
+    console.log('❌ [STORAGE] Invalid method:', req.method);
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     if (!TARGET_FOLDER_ID) {
+      console.log('❌ [STORAGE] GOOGLE_DRIVE_FOLDER_ID not configured');
       return res.status(400).json({ 
         error: 'GOOGLE_DRIVE_FOLDER_ID environment variable not set' 
       });
     }
 
+    console.log('🔐 [STORAGE] Initializing Google Drive client...');
     const drive = await getGoogleDriveClient();
+    console.log('✅ [STORAGE] Google Drive client initialized');
 
     let allFiles: Array<{ id: string; name: string; size: number }> = [];
     let pageToken: string | undefined = undefined;
     let totalBytes = 0;
+    let pageCount = 0;
 
     do {
+      pageCount++;
+      console.log(`📄 [STORAGE] Fetching files page ${pageCount} from folder ${TARGET_FOLDER_ID}...`);
+      
       const response: any = await drive.files.list({
         q: `'${TARGET_FOLDER_ID}' in parents and trashed = false`,
         fields: 'nextPageToken, files(id, name, size)',
@@ -93,6 +104,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       const files = response.data.files || [];
+      console.log(`✅ [STORAGE] Page ${pageCount} returned ${files.length} files`);
+      
       for (const file of files) {
         const fileSize = parseInt(file.size || '0', 10);
         totalBytes += fileSize;
@@ -106,16 +119,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       pageToken = response.data.nextPageToken;
     } while (pageToken);
 
+    console.log(`✨ [STORAGE] SUCCESS - Found ${allFiles.length} files, total ${totalBytes} bytes`);
     res.json({
       totalBytes,
       fileCount: allFiles.length,
       files: allFiles,
     });
   } catch (error: any) {
-    console.error('Storage API error:', error);
+    console.error('❌ [STORAGE] ERROR:', {
+      message: error.message,
+      code: error.code,
+      status: error.status,
+      stack: error.stack
+    });
     res.status(500).json({ 
       error: error.message || 'Failed to get storage info',
-      // Remove in production - just for debugging
       debug: process.env.NODE_ENV === 'development' ? error.toString() : undefined
     });
   }

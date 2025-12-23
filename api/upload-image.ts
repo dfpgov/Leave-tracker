@@ -60,44 +60,57 @@ async function getGoogleDriveClient() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('📤 [UPLOAD] Request received:', { method: req.method, hasBody: !!req.body });
+  
   // Add CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
 
   if (req.method === 'OPTIONS') {
+    console.log('✅ [UPLOAD] OPTIONS request handled');
     return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
+    console.log('❌ [UPLOAD] Invalid method:', req.method);
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
+    console.log('🔍 [UPLOAD] Parsing request body...');
     const { base64Data, fileName, mimeType } = req.body;
+    console.log('📋 [UPLOAD] Body parsed:', { hasBase64: !!base64Data, fileName, mimeType });
 
     if (!base64Data || !fileName || !mimeType) {
+      console.log('⚠️  [UPLOAD] Missing fields:', { base64Data: !!base64Data, fileName: !!fileName, mimeType: !!mimeType });
       return res.status(400).json({ 
         error: 'Missing required fields: base64Data, fileName, mimeType' 
       });
     }
 
     if (!TARGET_FOLDER_ID) {
+      console.log('❌ [UPLOAD] GOOGLE_DRIVE_FOLDER_ID not configured');
       return res.status(400).json({ 
         error: 'GOOGLE_DRIVE_FOLDER_ID environment variable not set' 
       });
     }
 
+    console.log('🔐 [UPLOAD] Initializing Google Drive client...');
     const drive = await getGoogleDriveClient();
+    console.log('✅ [UPLOAD] Google Drive client initialized');
 
     const base64Content = base64Data.includes(',') 
       ? base64Data.split(',')[1] 
       : base64Data;
+    console.log('📊 [UPLOAD] Base64 content extracted, length:', base64Content.length);
 
     const buffer = Buffer.from(base64Content, 'base64');
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
+    console.log('📦 [UPLOAD] Buffer and stream created');
 
+    console.log('🚀 [UPLOAD] Creating file in Google Drive:', { fileName, mimeType, folder: TARGET_FOLDER_ID });
     const createResponse = await drive.files.create({
       requestBody: {
         name: fileName,
@@ -111,10 +124,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const fileId = createResponse.data.id;
+    console.log('✅ [UPLOAD] File created with ID:', fileId);
+    
     if (!fileId) {
       throw new Error('Failed to get file ID from Google Drive');
     }
 
+    console.log('🔓 [UPLOAD] Setting file permissions to public...');
     await drive.permissions.create({
       fileId: fileId,
       requestBody: {
@@ -122,12 +138,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         type: 'anyone',
       },
     });
+    console.log('✅ [UPLOAD] File is now public');
 
+    console.log('📋 [UPLOAD] Fetching file details...');
     const fileResponse = await drive.files.get({
       fileId: fileId,
       fields: 'id, webViewLink, webContentLink',
     });
+    console.log('✅ [UPLOAD] File details retrieved');
 
+    console.log('✨ [UPLOAD] SUCCESS - File uploaded and public');
     res.json({
       success: true,
       fileId: fileResponse.data.id || fileId,
@@ -135,10 +155,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       webContentLink: fileResponse.data.webContentLink || `https://drive.google.com/uc?export=view&id=${fileId}`,
     });
   } catch (error: any) {
-    console.error('Upload API error:', error);
+    console.error('❌ [UPLOAD] ERROR:', {
+      message: error.message,
+      code: error.code,
+      status: error.status,
+      stack: error.stack
+    });
     res.status(500).json({ 
       error: error.message || 'Failed to upload image',
-      // Remove in production - just for debugging
       debug: process.env.NODE_ENV === 'development' ? error.toString() : undefined
     });
   }

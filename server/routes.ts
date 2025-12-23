@@ -22,14 +22,19 @@ export async function registerRoutes(
 
   // Google Drive image upload endpoint
   app.post("/api/upload-image", async (req, res) => {
+    console.log("📤 [SERVER] POST /api/upload-image - Request received");
     try {
       const { base64Data, fileName, mimeType } = req.body;
+      console.log("📋 [SERVER] Body parsed:", { hasBase64: !!base64Data, fileName, mimeType });
 
       if (!base64Data || !fileName || !mimeType) {
+        console.log("⚠️  [SERVER] Missing fields in upload request");
         return res.status(400).json({ error: "Missing required fields: base64Data, fileName, mimeType" });
       }
 
+      console.log("🚀 [SERVER] Calling uploadImageToGoogleDrive...");
       const result = await uploadImageToGoogleDrive(base64Data, fileName, mimeType);
+      console.log("✅ [SERVER] Upload successful:", { fileId: result.fileId });
       
       res.json({
         success: true,
@@ -38,30 +43,42 @@ export async function registerRoutes(
         webContentLink: result.webContentLink,
       });
     } catch (error: any) {
-      console.error("Error uploading to Google Drive:", error);
+      console.error("❌ [SERVER] Upload error:", {
+        message: error.message,
+        stack: error.stack
+      });
       res.status(500).json({ error: error.message || "Failed to upload image" });
     }
   });
 
   // Delete image from Google Drive
   app.delete("/api/delete-image/:fileId", async (req, res) => {
+    console.log("🗑️  [SERVER] DELETE /api/delete-image - Request received");
     try {
       const { fileId } = req.params;
+      console.log("🚀 [SERVER] Calling deleteImageFromGoogleDrive for", fileId);
       await deleteImageFromGoogleDrive(fileId);
+      console.log("✅ [SERVER] Delete successful");
       res.json({ success: true });
     } catch (error: any) {
-      console.error("Error deleting from Google Drive:", error);
+      console.error("❌ [SERVER] Delete error:", error.message);
       res.status(500).json({ error: error.message || "Failed to delete image" });
     }
   });
 
   // Get file sizes from Google Drive folder
   app.get("/api/drive-storage", async (_req, res) => {
+    console.log("📂 [SERVER] GET /api/drive-storage - Request received");
     try {
+      console.log("🚀 [SERVER] Calling getFileSizes...");
       const result = await getFileSizes();
+      console.log("✅ [SERVER] Storage info retrieved:", { fileCount: result.fileCount, totalBytes: result.totalBytes });
       res.json(result);
     } catch (error: any) {
-      console.error("Error getting drive storage:", error);
+      console.error("❌ [SERVER] Storage error:", {
+        message: error.message,
+        stack: error.stack
+      });
       res.status(500).json({ error: error.message || "Failed to get storage info" });
     }
   });
