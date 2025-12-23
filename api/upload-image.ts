@@ -6,24 +6,43 @@ const TARGET_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
 async function getGoogleDriveClient() {
   let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '';
-  // Handle both escaped newlines (\\n) and literal newlines (\n)
-  privateKey = privateKey.replace(/\\n/g, '\n').replace(/\\\\n/g, '\n');
   
-  const credentials = {
-    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: privateKey,
-  };
-
-  if (!credentials.client_email || !credentials.private_key) {
-    throw new Error('Google service account credentials not configured. Please set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY environment variables.');
+  if (!privateKey) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY not set');
   }
 
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
-  });
+  // Handle multiple formats of newlines in the private key
+  // The key might come in as: \\n (escaped), \n (literal), or with actual newlines
+  privateKey = privateKey
+    .replace(/\\n/g, '\n')           // Replace escaped newlines with actual newlines
+    .replace(/\\\\n/g, '\n')         // Replace double-escaped newlines
+    .trim();
+  
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
+  
+  if (!clientEmail) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_EMAIL not set');
+  }
 
-  return google.drive({ version: 'v3', auth });
+  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is not a valid private key format');
+  }
+
+  try {
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: clientEmail,
+        private_key: privateKey,
+        type: 'service_account',
+      },
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
+    });
+
+    return google.drive({ version: 'v3', auth });
+  } catch (error: any) {
+    console.error('Failed to create Google auth client:', error.message);
+    throw new Error(`Google authentication failed: ${error.message}`);
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -90,7 +109,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       webContentLink: fileResponse.data.webContentLink || `https://drive.google.com/uc?export=view&id=${fileId}`,
     });
   } catch (error: any) {
-    console.error('Error uploading to Google Drive:', error);
-    res.status(500).json({ error: error.message || 'Failed to upload image' });
+    console.error('Error uploading to Google Drive:', {
+      message: error.message,
+      code: error.code,
+      status: error.status,
+    });
+    res.status(500).json({ 
+      error: error.message || 'Failed to upload image',
+      details: process.env.NODE_ENV === 'development' ? error.toString() : undefined
+    });
   }
 }
