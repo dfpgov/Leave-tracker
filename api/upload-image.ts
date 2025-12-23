@@ -5,9 +5,13 @@ import { Readable } from 'stream';
 const TARGET_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
 async function getGoogleDriveClient() {
+  let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '';
+  // Handle both escaped newlines (\\n) and literal newlines (\n)
+  privateKey = privateKey.replace(/\\n/g, '\n').replace(/\\\\n/g, '\n');
+  
   const credentials = {
     client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    private_key: privateKey,
   };
 
   if (!credentials.client_email || !credentials.private_key) {
