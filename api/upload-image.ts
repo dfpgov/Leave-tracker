@@ -11,7 +11,7 @@ async function getGoogleDriveClient() {
   };
 
   if (!credentials.client_email || !credentials.private_key) {
-    throw new Error('Google service account credentials not configured');
+    throw new Error('Google service account credentials not configured. Please set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY environment variables.');
   }
 
   const auth = new google.auth.GoogleAuth({
