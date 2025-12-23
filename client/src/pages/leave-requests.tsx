@@ -39,6 +39,7 @@ import * as z from "zod";
 import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Trash2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { parseDate, safeFormat } from "@/lib/dateUtils";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 
@@ -132,7 +133,7 @@ export default function LeaveRequests() {
       if (leaveType.name === "Casual Leave") {
          const currentYear = new Date().getFullYear();
          const usedDays = requests
-           .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved' && new Date(r.startDate).getFullYear() === currentYear)
+           .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved' && parseDate(r.startDate).getFullYear() === currentYear)
            .reduce((acc, curr) => acc + curr.approvedDays, 0);
          
          const maxDays = 20;
@@ -421,8 +422,8 @@ export default function LeaveRequests() {
     const matchesSearch = !searchTerm || 
       request.employeeName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesEmployee = employeeFilterId === "all-employees" || request.employeeId === employeeFilterId;
-    const matchesStartDate = !startDateFilter || new Date(request.startDate) >= new Date(startDateFilter);
-    const matchesEndDate = !endDateFilter || new Date(request.endDate) <= new Date(endDateFilter);
+    const matchesStartDate = !startDateFilter || parseDate(request.startDate) >= new Date(startDateFilter);
+    const matchesEndDate = !endDateFilter || parseDate(request.endDate) <= new Date(endDateFilter);
     const matchesStatus = statusFilter === "all-statuses" || request.status === statusFilter;
     const matchesLeaveType = leaveTypeFilter === "all-leave-types" || request.leaveTypeId === leaveTypeFilter;
     
@@ -432,7 +433,7 @@ export default function LeaveRequests() {
     if (a.status !== "Pending" && b.status === "Pending") return 1;
     if (a.status === "Approved" && b.status === "Rejected") return -1;
     if (a.status === "Rejected" && b.status === "Approved") return 1;
-    return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+    return parseDate(a.startDate).getTime() - parseDate(b.startDate).getTime();
   });
 
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
@@ -460,7 +461,7 @@ export default function LeaveRequests() {
 
     const uniqueEmployees = Array.from(new Set(filteredRequests.map(r => r.employeeName)));
     const dateRange = filteredRequests.length > 0 
-      ? `${format(new Date(Math.min(...filteredRequests.map(r => new Date(r.startDate).getTime()))), "MMM d, yyyy")} to ${format(new Date(Math.max(...filteredRequests.map(r => new Date(r.endDate).getTime()))), "MMM d, yyyy")}`
+      ? `${safeFormat(new Date(Math.min(...filteredRequests.map(r => parseDate(r.startDate).getTime()))), "MMM d, yyyy")} to ${safeFormat(new Date(Math.max(...filteredRequests.map(r => parseDate(r.endDate).getTime()))), "MMM d, yyyy")}`
       : "";
     
     const pdfTitle = uniqueEmployees.length === 1 
@@ -495,17 +496,17 @@ export default function LeaveRequests() {
 
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
+      doc.text(`Generated: ${safeFormat(new Date(), "PPP p")}`, 15, yPosition);
       doc.text(`Total Records: ${filteredRequests.length}`, pageWidth - 15, yPosition, { align: "right" });
       yPosition += 6;
 
       doc.setFontSize(9);
       if (startDateFilter || endDateFilter) {
         const dateRangeText = startDateFilter && endDateFilter 
-          ? `${format(new Date(startDateFilter), "MMM d, yyyy")} - ${format(new Date(endDateFilter), "MMM d, yyyy")}`
+          ? `${safeFormat(startDateFilter, "MMM d, yyyy")} - ${safeFormat(endDateFilter, "MMM d, yyyy")}`
           : startDateFilter 
-            ? `From ${format(new Date(startDateFilter), "MMM d, yyyy")}`
-            : `Until ${format(new Date(endDateFilter), "MMM d, yyyy")}`;
+            ? `From ${safeFormat(startDateFilter, "MMM d, yyyy")}`
+            : `Until ${safeFormat(endDateFilter, "MMM d, yyyy")}`;
         doc.text(`Date Range: ${dateRangeText}`, 15, yPosition);
         yPosition += 5;
       }
@@ -545,8 +546,8 @@ export default function LeaveRequests() {
         const rowData = [
           r.employeeName,
           r.leaveTypeName,
-          format(new Date(r.startDate), "MMM d, yyyy"),
-          format(new Date(r.endDate), "MMM d, yyyy"),
+          safeFormat(r.startDate, "MMM d, yyyy"),
+          safeFormat(r.endDate, "MMM d, yyyy"),
           r.approvedDays.toString(),
           r.status,
         ];
@@ -566,7 +567,7 @@ export default function LeaveRequests() {
         }
       });
 
-      doc.save(`leave-requests-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      doc.save(`leave-requests-${safeFormat(new Date(), "yyyy-MM-dd")}.pdf`);
       toast({
         title: "PDF Downloaded",
         description: `Approved leave report (${filteredRequests.length} records) downloaded successfully.`,
@@ -896,7 +897,7 @@ export default function LeaveRequests() {
                         </span>
                     </TableCell>
                     <TableCell className="text-sm">
-                        {format(new Date(request.startDate), "MMM d")} - {format(new Date(request.endDate), "MMM d, yyyy")}
+                        {safeFormat(request.startDate, "MMM d")} - {safeFormat(request.endDate, "MMM d, yyyy")}
                     </TableCell>
                     <TableCell className="text-center font-medium">{request.approvedDays}</TableCell>
                     <TableCell className="text-center">
@@ -984,11 +985,11 @@ export default function LeaveRequests() {
                               <div className="grid grid-cols-3 gap-4">
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Start Date</p>
-                                  <p className="font-medium text-foreground">{format(new Date(request.startDate), "PPP")}</p>
+                                  <p className="font-medium text-foreground">{safeFormat(request.startDate, "PPP")}</p>
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">End Date</p>
-                                  <p className="font-medium text-foreground">{format(new Date(request.endDate), "PPP")}</p>
+                                  <p className="font-medium text-foreground">{safeFormat(request.endDate, "PPP")}</p>
                                 </div>
                                 <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
                                   <p className="text-xs text-muted-foreground uppercase">Days</p>
@@ -1003,7 +1004,7 @@ export default function LeaveRequests() {
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Submitted At</p>
-                                  <p className="font-medium text-foreground">{request.timestamp ? format(new Date(request.timestamp), "PPP p") : "-"}</p>
+                                  <p className="font-medium text-foreground">{request.timestamp ? safeFormat(request.timestamp, "PPP p") : "-"}</p>
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Approved/Rejected By</p>
@@ -1011,7 +1012,7 @@ export default function LeaveRequests() {
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Approved/Rejected At</p>
-                                  <p className="font-medium text-foreground">{request.updatedAt ? format(new Date(request.updatedAt), "PPP p") : "-"}</p>
+                                  <p className="font-medium text-foreground">{request.updatedAt ? safeFormat(request.updatedAt, "PPP p") : "-"}</p>
                                 </div>
                               </div>
 

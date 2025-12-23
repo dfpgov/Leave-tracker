@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Eye, Download, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { parseDate, safeFormat } from "@/lib/dateUtils";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import { useToast } from "@/hooks/use-toast";
@@ -83,8 +84,8 @@ export default function EmployeeLeaveSummary() {
         const toDate = dateTo ? new Date(dateTo) : null;
 
         return leaves.some((leave) => {
-          const leaveStart = new Date(leave.startDate);
-          const leaveEnd = new Date(leave.endDate);
+          const leaveStart = parseDate(leave.startDate);
+          const leaveEnd = parseDate(leave.endDate);
           
           if (fromDate && leaveEnd < fromDate) return false;
           if (toDate && leaveStart > toDate) return false;
@@ -141,8 +142,8 @@ export default function EmployeeLeaveSummary() {
       filteredLeaves = filteredLeaves.filter(leave => {
         const fromDate = dateFromFilter ? new Date(dateFromFilter) : null;
         const toDate = dateToFilter ? new Date(dateToFilter) : null;
-        const leaveStart = new Date(leave.startDate);
-        const leaveEnd = new Date(leave.endDate);
+        const leaveStart = parseDate(leave.startDate);
+        const leaveEnd = parseDate(leave.endDate);
         
         if (fromDate && leaveEnd < fromDate) return false;
         if (toDate && leaveStart > toDate) return false;
@@ -158,7 +159,7 @@ export default function EmployeeLeaveSummary() {
         r.employeeId === employee.id && 
         r.status === "Approved" && 
         r.leaveTypeName === "Casual Leave" &&
-        new Date(r.startDate).getFullYear() === currentYear
+        parseDate(r.startDate).getFullYear() === currentYear
       )
       .reduce((acc, leave) => acc + leave.approvedDays, 0);
     const casualLeaveLeft = Math.max(0, 20 - casualLeaveUsed);
@@ -185,7 +186,7 @@ export default function EmployeeLeaveSummary() {
       : "All Leave Types";
     
     const dateRange = filteredLeaves.length > 0 
-      ? `${format(new Date(Math.min(...filteredLeaves.map(l => new Date(l.startDate).getTime()))), "MMM d, yyyy")} to ${format(new Date(Math.max(...filteredLeaves.map(l => new Date(l.endDate).getTime()))), "MMM d, yyyy")}`
+      ? `${safeFormat(new Date(Math.min(...filteredLeaves.map(l => parseDate(l.startDate).getTime()))), "MMM d, yyyy")} to ${safeFormat(new Date(Math.max(...filteredLeaves.map(l => parseDate(l.endDate).getTime()))), "MMM d, yyyy")}`
       : "";
     
     const pdfTitle = `Leave summary for ${employee.name} - ${totalDays} days (${dateRange})`;
@@ -225,8 +226,8 @@ export default function EmployeeLeaveSummary() {
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
       
-      const fromText = dateFromFilter ? format(new Date(dateFromFilter), "MMM d, yyyy") : "All Dates";
-      const toText = dateToFilter ? format(new Date(dateToFilter), "MMM d, yyyy") : "All Dates";
+      const fromText = dateFromFilter ? safeFormat(dateFromFilter, "MMM d, yyyy") : "All Dates";
+      const toText = dateToFilter ? safeFormat(dateToFilter, "MMM d, yyyy") : "All Dates";
       const periodText = (dateFromFilter || dateToFilter) 
         ? `${fromText} to ${toText}` 
         : "All Dates";
@@ -239,7 +240,7 @@ export default function EmployeeLeaveSummary() {
       doc.text(`Designation: ${employee.designation}`, leftX, infoStartY + 6);
       doc.text(`Section: ${employee.department}`, leftX, infoStartY + 12);
       
-      doc.text(`Generated: ${format(new Date(), "PPP p")}`, rightX, infoStartY);
+      doc.text(`Generated: ${safeFormat(new Date(), "PPP p")}`, rightX, infoStartY);
       doc.text(`Report Period: ${periodText}`, rightX, infoStartY + 6);
       doc.text(`Report Type: ${selectedLeaveType}`, rightX, infoStartY + 12);
       
@@ -278,7 +279,7 @@ export default function EmployeeLeaveSummary() {
 
       leaveTypeMap.forEach((leaves, leaveType) => {
         const typeDays = leaves.reduce((acc, leave) => acc + leave.approvedDays, 0);
-        const sortedLeaves = [...leaves].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+        const sortedLeaves = [...leaves].sort((a, b) => parseDate(a.startDate).getTime() - parseDate(b.startDate).getTime());
         doc.setFont("helvetica", "bold");
         doc.text(`${leaveType}: ${typeDays} days`, 15, yPosition);
         yPosition += 6;
@@ -291,7 +292,7 @@ export default function EmployeeLeaveSummary() {
             yPosition = 15;
           }
 
-          const dateRangeText = `${format(new Date(leave.startDate), "MMM d")} - ${format(new Date(leave.endDate), "MMM d, yyyy")}`;
+          const dateRangeText = `${safeFormat(leave.startDate, "MMM d")} - ${safeFormat(leave.endDate, "MMM d, yyyy")}`;
           doc.text(`  • ${dateRangeText} (${leave.approvedDays} days)`, 20, yPosition);
           yPosition += 4;
         });
@@ -457,7 +458,7 @@ export default function EmployeeLeaveSummary() {
                                     });
                                     
                                     return Array.from(leaveTypeMap).map(([leaveType, leaves]) => {
-                                      const sortedLeaves = [...leaves].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+                                      const sortedLeaves = [...leaves].sort((a, b) => parseDate(a.startDate).getTime() - parseDate(b.startDate).getTime());
                                       return (
                                         <div key={leaveType} className="border rounded-lg p-3">
                                           <div className="flex justify-between items-center mb-2">
@@ -467,7 +468,7 @@ export default function EmployeeLeaveSummary() {
                                           <div className="space-y-1">
                                             {sortedLeaves.map((leave) => (
                                               <div key={leave.id} className="text-sm text-muted-foreground flex justify-between">
-                                                <span>{format(new Date(leave.startDate), "MMM d")} - {format(new Date(leave.endDate), "MMM d, yyyy")}</span>
+                                                <span>{safeFormat(leave.startDate, "MMM d")} - {safeFormat(leave.endDate, "MMM d, yyyy")}</span>
                                                 <span className="font-medium text-foreground">{leave.approvedDays}d</span>
                                               </div>
                                             ))}

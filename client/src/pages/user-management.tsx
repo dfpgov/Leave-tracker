@@ -37,7 +37,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Plus, Trash2, Shield, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { safeFormat } from "@/lib/dateUtils";
 
 const userSchema = z.object({
   name: z.string().min(1, "Username is required"),
@@ -259,7 +259,7 @@ export default function UserManagement() {
                     {user.role}
                   </span>
                 </TableCell>
-                <TableCell>{format(new Date(user.createdAt), "MMM d, yyyy")}</TableCell>
+                <TableCell>{safeFormat(user.createdAt, "MMM d, yyyy")}</TableCell>
                 <TableCell className="text-right">
                   <Button
                     variant="ghost"

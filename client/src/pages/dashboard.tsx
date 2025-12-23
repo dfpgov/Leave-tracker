@@ -3,9 +3,10 @@ import { firebaseService } from "@/lib/firebaseStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { format, isAfter, isBefore, addDays } from "date-fns";
+import { isAfter, isBefore, addDays } from "date-fns";
 import { Users, UserCheck, Clock, Calendar, CalendarDays } from "lucide-react";
 import { useLocation } from "wouter";
+import { parseDate, safeFormat } from "@/lib/dateUtils";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -35,8 +36,8 @@ export default function Dashboard() {
       today.setHours(0, 0, 0, 0);
       
       const activeLeaves = allRequests.filter(r => {
-        const start = new Date(r.startDate);
-        const end = new Date(r.endDate);
+        const start = parseDate(r.startDate);
+        const end = parseDate(r.endDate);
         start.setHours(0, 0, 0, 0);
         end.setHours(0, 0, 0, 0);
         return today >= start && today <= end && r.status === 'Approved';
@@ -60,8 +61,8 @@ export default function Dashboard() {
     const onLeave = new Set<string>();
     requests.forEach(request => {
       if (request.status === 'Approved') {
-        const startDate = new Date(request.startDate);
-        const endDate = new Date(request.endDate);
+        const startDate = parseDate(request.startDate);
+        const endDate = parseDate(request.endDate);
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(0, 0, 0, 0);
         
@@ -190,7 +191,7 @@ export default function Dashboard() {
                                     </span>
                                 </TableCell>
                                 <TableCell className="text-center text-sm">
-                                    {format(new Date(leaveRequest?.startDate), "MMM d")} - {format(new Date(leaveRequest?.endDate), "MMM d, yyyy")}
+                                    {safeFormat(leaveRequest?.startDate, "MMM d")} - {safeFormat(leaveRequest?.endDate, "MMM d, yyyy")}
                                 </TableCell>
                             </TableRow>
                         ))
@@ -218,9 +219,9 @@ export default function Dashboard() {
                                 <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                                     <div>
                                         <p className="font-medium">{holiday.name}</p>
-                                        <p className="text-sm text-muted-foreground">{format(new Date(holiday.date), "EEEE")}</p>
+                                        <p className="text-sm text-muted-foreground">{safeFormat(holiday.date, "EEEE")}</p>
                                     </div>
-                                    <span className="text-sm font-medium text-primary">{format(new Date(holiday.date), "MMM d, yyyy")}</span>
+                                    <span className="text-sm font-medium text-primary">{safeFormat(holiday.date, "MMM d, yyyy")}</span>
                                 </div>
                             ))}
                         </div>
@@ -247,7 +248,7 @@ export default function Dashboard() {
                                         <p className="font-medium">{leave.employeeName}</p>
                                         <p className="text-sm text-muted-foreground">{leave.leaveTypeName} - {leave.approvedDays} days</p>
                                     </div>
-                                    <span className="text-sm font-medium text-orange-600">{format(new Date(leave.startDate), "MMM d")}</span>
+                                    <span className="text-sm font-medium text-orange-600">{safeFormat(leave.startDate, "MMM d")}</span>
                                 </div>
                             ))}
                         </div>

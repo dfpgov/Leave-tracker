@@ -30,7 +30,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { safeFormat } from "@/lib/dateUtils";
 
 const holidaySchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -184,8 +184,8 @@ export default function Holidays() {
             {holidays.map((holiday) => (
                 <TableRow key={holiday.id}>
                 <TableCell className="font-medium">{holiday.name}</TableCell>
-                <TableCell>{format(new Date(holiday.startDate), "PP")}</TableCell>
-                <TableCell>{format(new Date(holiday.endDate), "PP")}</TableCell>
+                <TableCell>{safeFormat(holiday.startDate, "PP")}</TableCell>
+                <TableCell>{safeFormat(holiday.endDate, "PP")}</TableCell>
                 <TableCell>
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
                         {holiday.totalDays} days

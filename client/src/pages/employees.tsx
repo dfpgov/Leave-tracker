@@ -38,7 +38,7 @@ import * as z from "zod";
 import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { safeFormat } from "@/lib/dateUtils";
 
 const employeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -358,7 +358,7 @@ export default function Employees() {
                     <TableCell>{employee.department}</TableCell>
                     <TableCell>{employee.gender}</TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                        {format(new Date(employee.lastEdited), "PP p")}
+                        {safeFormat(employee.lastEdited, "PP p")}
                     </TableCell>
                     <TableCell className="text-right">
                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
