@@ -5,40 +5,50 @@ const TARGET_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
 async function getGoogleDriveClient() {
   let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '';
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
   
-  if (!privateKey) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY not set');
+  if (!privateKey || !clientEmail) {
+    const missing = [];
+    if (!privateKey) missing.push('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY');
+    if (!clientEmail) missing.push('GOOGLE_SERVICE_ACCOUNT_EMAIL');
+    throw new Error(`Missing environment variables: ${missing.join(', ')}`);
   }
 
-  // Handle multiple formats of newlines in the private key
+  // Clean up the private key - handle all possible newline formats
   privateKey = privateKey
-    .replace(/\\n/g, '\n')
-    .replace(/\\\\n/g, '\n')
-    .trim();
-  
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
-  
-  if (!clientEmail) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_EMAIL not set');
+    .trim()
+    .replace(/\\n/g, '\n')           // Replace escaped \n with actual newlines
+    .replace(/\\\\n/g, '\n')         // Replace double-escaped \\n
+    .replace(/'/g, '"');              // Replace smart quotes with regular quotes if any
+
+  // Ensure it ends with a newline before the END marker
+  if (!privateKey.endsWith('\n') && privateKey.includes('-----END PRIVATE KEY-----')) {
+    privateKey = privateKey.replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
   }
 
-  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is not a valid private key format');
+  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || !privateKey.includes('-----END PRIVATE KEY-----')) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is not in valid PEM format');
   }
 
   try {
     const auth = new google.auth.GoogleAuth({
       credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
         type: 'service_account',
+        client_email: clientEmail.trim(),
+        private_key: privateKey,
       },
       scopes: ['https://www.googleapis.com/auth/drive.file'],
     });
 
     return google.drive({ version: 'v3', auth });
   } catch (error: any) {
-    console.error('Failed to create Google auth client:', error.message);
+    console.error('Auth error details:', {
+      hasBeginMarker: privateKey.includes('-----BEGIN PRIVATE KEY-----'),
+      hasEndMarker: privateKey.includes('-----END PRIVATE KEY-----'),
+      keyLength: privateKey.length,
+      emailSet: !!clientEmail,
+      errorMessage: error.message,
+    });
     throw new Error(`Google authentication failed: ${error.message}`);
   }
 }
