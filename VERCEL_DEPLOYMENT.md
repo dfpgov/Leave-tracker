@@ -14,10 +14,11 @@ Push your code to GitHub, GitLab, or Bitbucket.
 
 1. Go to https://vercel.com/new
 2. Import your Git repository
-3. Configure the build settings:
+3. The build settings are already configured in `vercel.json`:
    - **Framework Preset**: Vite
    - **Build Command**: `vite build --outDir dist/public`
    - **Output Directory**: `dist/public`
+   - **Routes**: Static files served first, then API routes, then SPA fallback
 
 ## Step 3: Add Environment Variables
 

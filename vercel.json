@@ -1,9 +1,10 @@
 {
-  "buildCommand": "npm run build:vercel",
+  "buildCommand": "vite build --outDir dist/public",
   "outputDirectory": "dist/public",
   "framework": "vite",
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
