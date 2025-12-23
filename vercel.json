@@ -1,7 +1,7 @@
 {
-  "buildCommand": "vite build --outDir dist/public",
-  "outputDirectory": "dist/public",
-  "framework": "vite",
+  "buildCommand": "cd client && npx vite build --outDir ../dist",
+  "outputDirectory": "dist",
+  "framework": null,
   "routes": [
     { "handle": "filesystem" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
