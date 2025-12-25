@@ -4,35 +4,31 @@ import { google } from 'googleapis';
 const TARGET_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
 async function getGoogleDriveClient() {
-  const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
   const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
-  let credentials;
-
-  if (GOOGLE_SERVICE_ACCOUNT) {
-    try {
-      credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
-    } catch (err) {
-      console.warn('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON, falling back to individual variables');
+  if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) {
+    const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
+    if (GOOGLE_SERVICE_ACCOUNT) {
+      try {
+        const credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
+        credentials.private_key = credentials.private_key?.replace(/\\n/g, '\n');
+        const auth = new google.auth.GoogleAuth({
+          credentials,
+          scopes: ['https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/drive.file'],
+        });
+        return google.drive({ version: 'v3', auth });
+      } catch (err) {
+        console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON fallback');
+      }
     }
+    throw new Error('Google Drive credentials missing. Please set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.');
   }
 
-  if (!credentials && GOOGLE_SERVICE_ACCOUNT_EMAIL && GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) {
-    credentials = {
-      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    };
-  }
-
-  if (!credentials) {
-    throw new Error('Google Drive credentials not set. Please set GOOGLE_SERVICE_ACCOUNT or individual EMAIL and PRIVATE_KEY variables.');
-  }
-
-  // Handle newline characters in private key
-  if (credentials.private_key) {
-    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
-  }
+  const credentials = {
+    client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    private_key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  };
 
   const auth = new google.auth.GoogleAuth({
     credentials,
