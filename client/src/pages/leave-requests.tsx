@@ -356,23 +356,28 @@ export default function LeaveRequests() {
   if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
     setLoadingActionId(id);
     try {
-      // 1. Delete associated images from Google Drive first
-      // Assuming your request object has an 'attachments' array with filenames
-      if (request.attachments && request.attachments.length > 0) {
-        for (const file of request.attachments) {
-          // Use the POST endpoint we created to delete by filename
-          await fetch('/api/delete-image', {
+      // 1. Delete from Google Drive using the attachmentFileName variable
+      if (request.attachmentFileName) {
+        try {
+          const response = await fetch('/api/delete-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileName: file.name }),
+            body: JSON.stringify({ fileName: request.attachmentFileName }),
           });
+
+          if (!response.ok) {
+            console.error('Drive API returned error:', await response.text());
+            // We continue anyway so the Firebase record can be deleted
+          }
+        } catch (driveErr) {
+          console.error('Failed to contact delete-image API:', driveErr);
         }
       }
 
       // 2. Delete the record from Firebase
       await firebaseService.deleteLeaveRequest(id);
       
-      // 3. UI Updates
+      // 3. Refresh UI
       await refreshData();
       setSelectedIds(prev => {
         const newSet = new Set(prev);
@@ -382,14 +387,14 @@ export default function LeaveRequests() {
 
       toast({
         title: "Request Deleted",
-        description: `Approved leave for ${request.employeeName} and associated files have been deleted.`,
+        description: `Leave for ${request.employeeName} has been deleted.`,
       });
 
     } catch (error: any) {
       console.error("Error deleting request:", error);
       toast({
         title: "Delete Failed",
-        description: "Could not delete the leave request. Please try again.",
+        description: "Could not delete the leave request.",
         variant: "destructive",
       });
     } finally {
@@ -397,7 +402,7 @@ export default function LeaveRequests() {
     }
   }
 };
-
+  
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     if (confirm(`Are you sure you want to delete ${selectedIds.size} leave request(s)?`)) {
