@@ -10,7 +10,7 @@ const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 const SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const SERVICE_ACCOUNT_PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
-// Cache auth client
+// Cache the drive client
 let cachedDrive: ReturnType<typeof google.drive> | null = null;
 
 async function getDriveClient() {
@@ -20,14 +20,16 @@ async function getDriveClient() {
     throw new Error('Missing Google Service Account credentials in environment variables');
   }
 
-  // Fix Vercel/Netlify double-escaping issues
+  // Fix Vercel/Netlify escaping issues
   const privateKey = SERVICE_ACCOUNT_PRIVATE_KEY
     .replace(/\\n/g, '\n')
     .replace(/\\r/g, '')
     .trim();
 
-  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || 
-      !privateKey.includes('-----END PRIVATE KEY-----')) {
+  if (
+    !privateKey.includes('-----BEGIN PRIVATE KEY-----') ||
+    !privateKey.includes('-----END PRIVATE KEY-----')
+  ) {
     throw new Error('Service account private key appears to be malformed');
   }
 
@@ -65,17 +67,17 @@ function sendJson(res: VercelResponse, status: number, body: unknown) {
 // Main handler
 // ────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Log incoming request for debugging (visible in Vercel logs)
+  // ── Logging ───────────────────────────────────────────────────
   console.log(`[${new Date().toISOString()}] ${req.method} /api/upload-image`);
   console.log('Headers:', JSON.stringify(req.headers, null, 2));
   console.log('Body type:', typeof req.body);
-  console.log('Body preview:', 
+  console.log(
+    'Body preview:',
     typeof req.body === 'object' && req.body !== null
-      ? JSON.stringify(req.body).slice(0, 300) + '...'
+      ? JSON.stringify(req.body).slice(0, 400) + '...'
       : req.body
   );
 
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return sendJson(res, 200, {});
   }
@@ -90,53 +92,75 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return sendJson(res, 503, {
         error: 'Server configuration error - missing environment variables',
         missing: [
-          !FOLDER_ID && 'GOOGLE_DRIVE_FOLDER_ID',
-          !SERVICE_ACCOUNT_EMAIL && 'GOOGLE_SERVICE_ACCOUNT_EMAIL',
-          !SERVICE_ACCOUNT_PRIVATE_KEY && 'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
+          !FOLDER_ID ? 'GOOGLE_DRIVE_FOLDER_ID' : null,
+          !SERVICE_ACCOUNT_EMAIL ? 'GOOGLE_SERVICE_ACCOUNT_EMAIL' : null,
+          !SERVICE_ACCOUNT_PRIVATE_KEY ? 'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY' : null,
         ].filter(Boolean),
       });
     }
 
-    // Get and validate body
-    const body = req.body as Partial<{ base64: string; filename: string; mimetype: string }>;
+    // ── Flexible field name support ──────────────────────────────
+    const body = req.body as Record<string, any>;
 
     if (!body || Object.keys(body).length === 0) {
       return sendJson(res, 400, {
-        error: 'Empty request body. Please send JSON with base64, filename and mimetype fields.',
-        received: 'empty or undefined',
+        error: 'Empty request body',
+        expected: 'JSON with base64/base64Data, filename/fileName, mimetype/mimeType',
       });
     }
 
-    const { base64, filename, mimetype } = body;
+    // Accept multiple possible field names (compatibility)
+    const base64 =
+      body.base64 ||
+      body.base64Data ||
+      body.data ||
+      body.image ||
+      body.content;
+
+    const filename =
+      body.filename ||
+      body.fileName ||
+      body.name ||
+      body.file;
+
+    const mimetype =
+      body.mimetype ||
+      body.mimeType ||
+      body.type ||
+      body.contentType ||
+      body.mime;
 
     if (!base64) {
       return sendJson(res, 400, {
-        error: 'Missing required field: base64',
+        error: 'Missing base64 content',
         received_fields: Object.keys(body),
+        expected_one_of: ['base64', 'base64Data', 'data', 'image'],
       });
     }
 
     if (!filename) {
       return sendJson(res, 400, {
-        error: 'Missing required field: filename',
+        error: 'Missing filename',
         received_fields: Object.keys(body),
+        expected_one_of: ['filename', 'fileName', 'name'],
       });
     }
 
     if (!mimetype) {
       return sendJson(res, 400, {
-        error: 'Missing required field: mimetype',
+        error: 'Missing mimetype',
         received_fields: Object.keys(body),
+        expected_one_of: ['mimetype', 'mimeType', 'type'],
       });
     }
 
-    // Clean base64 (remove data URI prefix if present)
+    // Clean base64 (support both clean and data URI formats)
     const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
 
     let buffer: Buffer;
     try {
       buffer = Buffer.from(cleanBase64, 'base64');
-    } catch (e) {
+    } catch {
       return sendJson(res, 400, { error: 'Invalid base64 string' });
     }
 
@@ -144,14 +168,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return sendJson(res, 400, { error: 'Empty file content' });
     }
 
-    // Create readable stream from buffer
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
 
     const drive = await getDriveClient();
 
-    // Upload file
+    // Upload
     const uploadResult = await drive.files.create({
       requestBody: {
         name: filename,
@@ -170,7 +193,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error('Upload succeeded but no file ID was returned');
     }
 
-    // Make file publicly readable
+    // Make public
     await drive.permissions.create({
       fileId,
       requestBody: {
@@ -180,7 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       supportsAllDrives: true,
     });
 
-    // Get final file metadata
+    // Get final info
     const file = await drive.files.get({
       fileId,
       fields: 'id, name, webViewLink, webContentLink',
@@ -199,17 +222,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error('Upload error:', error);
 
-    const status = error.code === 403 ? 403
-                 : error.code === 401 ? 401
-                 : error.code === 400 ? 400
-                 : 500;
+    const status =
+      error.code === 403 ? 403 :
+      error.code === 401 ? 401 :
+      error.code === 400 ? 400 :
+      500;
 
     let message = error.message || 'Upload failed';
 
     if (error.message?.includes('invalid_grant') || error.message?.includes('JWT')) {
-      message = 'Authentication failed - invalid or malformed service account key';
+      message = 'Authentication failed - invalid service account key';
     } else if (error.code === 403) {
-      message = 'Permission denied - service account needs Editor access to target folder';
+      message = 'Permission denied - service account needs Editor access to folder';
     } else if (error.message?.includes('not found') && error.message?.includes('folder')) {
       message = 'Target folder not found - check GOOGLE_DRIVE_FOLDER_ID';
     }
