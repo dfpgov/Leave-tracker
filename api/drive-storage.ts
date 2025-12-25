@@ -15,13 +15,14 @@ async function getGoogleDriveClient() {
     try {
       credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT!);
     } catch (e: any) {
-      // Continue to next option
+      console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT:', e.message);
     }
   }
 
   // Option 2: Try individual env vars
   if (!credentials && hasEmail && hasPrivateKey) {
     let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY!;
+    // Handle both double-escaped and literal newlines
     privateKey = privateKey.replace(/\\n/g, '\n');
     
     credentials = {
@@ -44,11 +45,12 @@ async function getGoogleDriveClient() {
   try {
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
+      scopes: ['https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/drive.file'],
     });
 
     return google.drive({ version: 'v3', auth });
   } catch (error: any) {
+    console.error('GoogleAuth error:', error.message);
     throw error;
   }
 }
@@ -79,37 +81,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let pageToken: string | undefined = undefined;
     let totalBytes = 0;
 
-    do {
-      const response: any = await drive.files.list({
-        q: `'${TARGET_FOLDER_ID}' in parents and trashed = false`,
-        fields: 'nextPageToken, files(id, name, size)',
-        pageSize: 1000,
-        pageToken: pageToken,
-      });
-
-      const files = response.data.files || [];
-      
-      for (const file of files) {
-        const fileSize = parseInt(file.size || '0', 10);
-        totalBytes += fileSize;
-        allFiles.push({
-          id: file.id || '',
-          name: file.name || '',
-          size: fileSize,
+    try {
+      do {
+        const response: any = await drive.files.list({
+          q: `'${TARGET_FOLDER_ID}' in parents and trashed = false`,
+          fields: 'nextPageToken, files(id, name, size)',
+          pageSize: 1000,
+          pageToken: pageToken,
         });
-      }
 
-      pageToken = response.data.nextPageToken;
-    } while (pageToken);
+        const files = response.data.files || [];
+        
+        for (const file of files) {
+          const fileSize = parseInt(file.size || '0', 10);
+          totalBytes += fileSize;
+          allFiles.push({
+            id: file.id || '',
+            name: file.name || '',
+            size: fileSize,
+          });
+        }
 
-    res.json({
-      totalBytes,
-      fileCount: allFiles.length,
-      files: allFiles,
-    });
+        pageToken = response.data.nextPageToken;
+      } while (pageToken);
+
+      return res.status(200).json({
+        totalBytes,
+        fileCount: allFiles.length,
+        files: allFiles,
+      });
+    } catch (listError: any) {
+      console.error('Drive files.list error:', listError.message);
+      return res.status(500).json({ 
+        error: 'Google Drive access error: ' + listError.message,
+        details: listError.response?.data || listError.toString()
+      });
+    }
   } catch (error: any) {
+    console.error('Handler error:', error.message);
     res.status(500).json({ 
-      error: error.message || 'Failed to get storage info',
+      error: error.message || 'Internal server error',
       debug: process.env.NODE_ENV === 'development' ? error.toString() : undefined
     });
   }
