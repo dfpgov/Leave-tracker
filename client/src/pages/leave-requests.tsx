@@ -349,37 +349,59 @@ export default function LeaveRequests() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+ const handleDelete = async (id: string) => {
+  // 1. Find local reference for the confirmation message
   const request = requests.find(r => r.id === id);
   if (!request) return;
 
   if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
     setLoadingActionId(id);
+    
     try {
-      // 1. Delete from Google Drive using the attachmentFileName variable
-      if (request.attachmentFileName) {
-        try {
-          const response = await fetch('/api/delete-image', {
-  method: 'POST', // Use POST because we are sending data
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ fileName: request.attachmentFileName }),
-});
+      // 2. FETCH FULL DATA FROM FIREBASE (leaveRequests -> docId)
+      // This ensures we get the "attachmentFileName" directly from the source
+      const docRef = doc(db, "leaveRequests", id);
+      const docSnap = await getDoc(docRef);
 
-          if (!response.ok) {
-            console.error('Drive API returned error:', await response.text());
-            // We continue anyway so the Firebase record can be deleted
+      if (docSnap.exists()) {
+        const fullData = docSnap.data();
+        
+        // CONSOLE LOG THE STRUCTURE AS REQUESTED
+        console.log("--- Firebase Data Fetch ---");
+        console.log("Full Data Object:", fullData);
+        console.log("Attachment File Name:", fullData.attachmentFileName);
+        console.log("---------------------------");
+
+        // 3. DELETE FROM GOOGLE DRIVE
+        // Use the filename fetched directly from Firebase data
+        if (fullData.attachmentFileName) {
+          try {
+            const driveResponse = await fetch('/api/delete-image', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ fileName: fullData.attachmentFileName }),
+            });
+
+            if (!driveResponse.ok) {
+              const errorText = await driveResponse.text();
+              console.error('Drive API responded with error:', errorText);
+            } else {
+              console.log("Google Drive deletion request successful.");
+            }
+          } catch (driveErr) {
+            console.error('Network error contacting delete-image API:', driveErr);
           }
-        } catch (driveErr) {
-          console.error('Failed to contact delete-image API:', driveErr);
         }
+      } else {
+        console.warn("No document found in Firebase for ID:", id);
       }
 
-      // 2. Delete the record from Firebase
+      // 4. DELETE THE RECORD FROM FIREBASE
       await firebaseService.deleteLeaveRequest(id);
       
-      // 3. Refresh UI
+      // 5. REFRESH UI STATE
       await refreshData();
       setSelectedIds(prev => {
         const newSet = new Set(prev);
@@ -393,10 +415,10 @@ export default function LeaveRequests() {
       });
 
     } catch (error: any) {
-      console.error("Error deleting request:", error);
+      console.error("Critical Error in delete process:", error);
       toast({
         title: "Delete Failed",
-        description: "Could not delete the leave request.",
+        description: "An error occurred. Please check the console.",
         variant: "destructive",
       });
     } finally {
@@ -404,7 +426,6 @@ export default function LeaveRequests() {
     }
   }
 };
-  
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     if (confirm(`Are you sure you want to delete ${selectedIds.size} leave request(s)?`)) {
