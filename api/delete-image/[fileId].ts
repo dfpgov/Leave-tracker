@@ -2,13 +2,21 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 
 async function getGoogleDriveClient() {
-  const credentials = {
-    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  };
+  const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
+  if (!GOOGLE_SERVICE_ACCOUNT) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT environment variable is not set');
+  }
 
-  if (!credentials.client_email || !credentials.private_key) {
-    throw new Error('Google service account credentials not configured');
+  let credentials;
+  try {
+    credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
+  } catch (err) {
+    throw new Error('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON: ' + (err as any).message);
+  }
+
+  // Handle newline characters in private key
+  if (credentials.private_key) {
+    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
   }
 
   const auth = new google.auth.GoogleAuth({

@@ -24,6 +24,11 @@ async function getDriveClient() {
     throw new Error("Failed to parse GOOGLE_SERVICE_ACCOUNT JSON: " + (err as any).message);
   }
 
+  // Handle newline characters in private key if it's from an env var
+  if (credentials.private_key) {
+    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+  }
+
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ['https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/drive.file'],
@@ -57,6 +62,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const drive = await getDriveClient();
     console.log("✅ Google Drive client initialized");
+
+    // Handle newline characters in private key if it's from an env var
+    // Note: getDriveClient needs to be updated too, but let's fix the logic here if needed
+    // Actually, getDriveClient parses JSON, so we should check the credentials object there.
 
     // ------------------
     // Prepare file

@@ -4,55 +4,32 @@ import { google } from 'googleapis';
 const TARGET_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
 async function getGoogleDriveClient() {
-  const hasGoogleServiceAccount = !!process.env.GOOGLE_SERVICE_ACCOUNT;
-  const hasEmail = !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const hasPrivateKey = !!process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-
-  let credentials: any = null;
-
-  // Option 1: Try JSON service account
-  if (hasGoogleServiceAccount) {
-    try {
-      credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT!);
-    } catch (e: any) {
-      console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT:', e.message);
-    }
+  const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
+  if (!GOOGLE_SERVICE_ACCOUNT) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT environment variable is not set');
   }
 
-  // Option 2: Try individual env vars
-  if (!credentials && hasEmail && hasPrivateKey) {
-    let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY!;
-    // Handle both double-escaped and literal newlines
-    privateKey = privateKey.replace(/\\n/g, '\n');
-    
-    credentials = {
-      type: 'service_account',
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!,
-      private_key: privateKey,
-    };
-  }
-
-  // If still no credentials, throw detailed error
-  if (!credentials) {
-    throw new Error(
-      'No Google credentials found. Set either:\n' +
-      '1. GOOGLE_SERVICE_ACCOUNT (entire JSON service account)\n' +
-      '2. GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY\n' +
-      `Current state: hasServiceAccount=${hasGoogleServiceAccount}, hasEmail=${hasEmail}, hasPrivateKey=${hasPrivateKey}`
-    );
-  }
-
+  let credentials;
   try {
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/drive.file'],
-    });
-
-    return google.drive({ version: 'v3', auth });
-  } catch (error: any) {
-    console.error('GoogleAuth error:', error.message);
-    throw error;
+    credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
+  } catch (err) {
+    throw new Error('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON: ' + (err as any).message);
   }
+
+  // Handle newline characters in private key
+  if (credentials.private_key) {
+    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+  }
+
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: [
+      'https://www.googleapis.com/auth/drive.metadata.readonly',
+      'https://www.googleapis.com/auth/drive.file'
+    ],
+  });
+
+  return google.drive({ version: 'v3', auth });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
