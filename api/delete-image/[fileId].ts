@@ -1,85 +1,53 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 
-// ────────────────────────────────────────────────
-// Environment variables (Same as your Upload API)
-// ────────────────────────────────────────────────
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
 
 async function getDriveClient() {
-  if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
-    throw new Error('Missing OAuth2 credentials for deletion');
-  }
-
   const oauth2Client = new google.auth.OAuth2(
     CLIENT_ID,
     CLIENT_SECRET,
     'https://developers.google.com/oauthplayground'
   );
-
-  oauth2Client.setCredentials({
-    refresh_token: REFRESH_TOKEN,
-  });
-
+  oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
   return google.drive({ version: 'v3', auth: oauth2Client });
 }
 
-// ────────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────────
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
-} as const;
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS Handlers
-  Object.entries(corsHeaders).forEach(([key, value]) => res.setHeader(key, value));
+  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  // We enforce DELETE method for this endpoint
-  if (req.method !== 'DELETE') {
-    return res.status(405).json({ error: 'Method not allowed. Use DELETE.' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'DELETE') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // You can send fileId via Query (?fileId=...) or Body ({ "fileId": "..." })
-    const fileId = (req.query.fileId as string) || (req.body?.fileId as string);
+    // In a dynamic route [fileId].ts, the ID is found in req.query.fileId
+    const { fileId } = req.query;
 
-    if (!fileId) {
-      return res.status(400).json({ error: 'File ID is required to delete' });
+    if (!fileId || typeof fileId !== 'string') {
+      return res.status(400).json({ error: 'Invalid File ID' });
     }
 
     const drive = await getDriveClient();
 
-    // 1. Execute the deletion
-    // Note: delete() removes it permanently. 
-    // Use update({ fileId, requestBody: { trashed: true } }) if you want to send it to Trash instead.
-    await drive.files.delete({
-      fileId: fileId,
-    });
+    // Delete the file
+    await drive.files.delete({ fileId });
 
-    return res.status(200).json({
-      success: true,
-      message: `File ${fileId} deleted successfully`,
-    });
-
+    return res.status(200).json({ success: true, message: 'Deleted ' + fileId });
   } catch (error: any) {
     console.error('Delete error:', error);
-
-    // Specific error handling
-    if (error.code === 404) {
-      return res.status(404).json({ error: 'File not found or already deleted' });
-    }
-
-    return res.status(error.code || 500).json({
-      error: error.message || 'Failed to delete file',
+    
+    // If Google Drive can't find the file, it returns 404
+    const status = error.code === 404 ? 404 : 500;
+    return res.status(status).json({ 
+      error: error.code === 404 ? 'File not found on Drive' : error.message 
     });
   }
 }
