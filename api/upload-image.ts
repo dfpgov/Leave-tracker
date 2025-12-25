@@ -1,4 +1,3 @@
-// api/upload-image.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
@@ -7,31 +6,30 @@ import { Readable } from 'stream';
 // Environment variables
 // ────────────────────────────────────────────────
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
+const SERVICE_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
-// Cache the drive client
-let cachedDrive: ReturnType<typeof google.drive> | null = null;
+// Cache the drive client per execution instance
+let cachedDrive: any = null;
 
 async function getDriveClient() {
   if (cachedDrive) return cachedDrive;
 
-  if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
-    throw new Error('Missing OAuth2 credentials (Client ID, Secret, or Refresh Token)');
+  if (!SERVICE_EMAIL || !PRIVATE_KEY) {
+    throw new Error('Missing Service Account Credentials (Email or Private Key)');
   }
 
-  const oauth2Client = new google.auth.OAuth2(
-    CLIENT_ID,
-    CLIENT_SECRET,
-    'https://developers.google.com/oauthplayground' // Ensure this matches your Google Cloud Console Redirect URI
+  // Handle Vercel's tendency to escape newline characters in env vars
+  const formattedKey = PRIVATE_KEY.replace(/\\n/g, '\n');
+
+  const auth = new google.auth.JWT(
+    SERVICE_EMAIL,
+    null,
+    formattedKey,
+    ['https://www.googleapis.com/auth/drive.file']
   );
 
-  oauth2Client.setCredentials({
-    refresh_token: REFRESH_TOKEN,
-  });
-
-  cachedDrive = google.drive({ version: 'v3', auth: oauth2Client });
+  cachedDrive = google.drive({ version: 'v3', auth });
   return cachedDrive;
 }
 
@@ -63,37 +61,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Environment check
-    if (!FOLDER_ID || !CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
-      return sendJson(res, 503, {
-        error: 'Server configuration error - missing OAuth environment variables',
-      });
+    if (!FOLDER_ID) {
+      return sendJson(res, 503, { error: 'Server configuration error - missing FOLDER_ID' });
     }
 
-    const body = req.body as Record<string, any>;
-    if (!body || Object.keys(body).length === 0) {
-      return sendJson(res, 400, { error: 'Empty request body' });
-    }
-
-    const base64 = body.base64 || body.base64Data || body.data || body.image;
-    const filename = body.filename || body.fileName || body.name;
-    const mimetype = body.mimetype || body.mimeType || body.type;
+    const { base64, filename, mimetype } = req.body;
 
     if (!base64 || !filename || !mimetype) {
       return sendJson(res, 400, { error: 'Missing required fields (base64, filename, or mimetype)' });
     }
 
-    // Clean base64
+    // Convert Base64 to Stream
     const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
     const buffer = Buffer.from(cleanBase64, 'base64');
-
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
 
     const drive = await getDriveClient();
 
-    // 1. Upload the file (it will now use YOUR storage quota)
+    // 1. Upload the file
     const uploadResult = await drive.files.create({
       requestBody: {
         name: filename,
@@ -103,12 +90,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         mimeType: mimetype,
         body: stream,
       },
-      fields: 'id, name, webViewLink, webContentLink',
+      fields: 'id, name, webViewLink',
     });
 
-    const fileId = uploadResult.data.id!;
+    const fileId = uploadResult.data.id;
 
-    // 2. Make the file public (optional)
+    // 2. Set permissions so "anyone with the link" can view (Optional)
     await drive.permissions.create({
       fileId,
       requestBody: {
@@ -122,19 +109,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       fileId,
       filename: uploadResult.data.name,
       webViewLink: uploadResult.data.webViewLink,
-      webContentLink: uploadResult.data.webContentLink,
-      directUrl: `https://drive.google.com/uc?id=${fileId}`,
+      directUrl: `https://drive.google.com/uc?export=view&id=${fileId}`,
     });
 
   } catch (error: any) {
-    console.error('Upload error:', error);
+    console.error('Service Account Upload Error:', error);
     
-    // Check if the refresh token expired or was revoked
-    if (error.message?.includes('invalid_grant')) {
-      return sendJson(res, 401, { error: 'OAuth Refresh Token is invalid or expired. Re-generate it in OAuth Playground.' });
-    }
-
-    return sendJson(res, error.code || 500, {
+    const statusCode = error.code && typeof error.code === 'number' ? error.code : 500;
+    return sendJson(res, statusCode, {
       error: error.message || 'Upload failed',
     });
   }
