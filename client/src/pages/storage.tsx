@@ -44,7 +44,13 @@ export default function StoragePage() {
 
       // Get exact file sizes from Google Drive API
       try {
-        const driveResponse = await fetch('/api/drive-storage');
+        const driveResponse = await fetch('/api/drive-storage', {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
         if (driveResponse.ok) {
           const driveData = await driveResponse.json();
           setImageStorageUsed(driveData.totalBytes / (1024 * 1024 * 1024));
@@ -62,7 +68,7 @@ export default function StoragePage() {
           const estimatedImageBytes = attachments * 0.5 * 1024 * 1024;
           setImageStorageUsed(estimatedImageBytes / (1024 * 1024 * 1024));
         }
-      } catch {
+      } catch (err) {
         // Fallback to counting attachments
         let attachments = 0;
         leaveRequests.forEach(req => {
