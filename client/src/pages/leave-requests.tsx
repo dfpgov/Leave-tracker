@@ -360,10 +360,12 @@ export default function LeaveRequests() {
       if (request.attachmentFileName) {
         try {
           const response = await fetch('/api/delete-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileName: request.attachmentFileName }),
-          });
+  method: 'POST', // Use POST because we are sending data
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ fileName: request.attachmentFileName }),
+});
 
           if (!response.ok) {
             console.error('Drive API returned error:', await response.text());
