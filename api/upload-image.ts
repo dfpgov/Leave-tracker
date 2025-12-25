@@ -1,161 +1,188 @@
+// api/upload-image.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
 // ────────────────────────────────────────────────
-// Environment Variables
+// Environment variables
 // ────────────────────────────────────────────────
-const TARGET_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
-const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT;
+const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+const SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const SERVICE_ACCOUNT_PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
-// Warning logs (helpful during debugging)
-if (!GOOGLE_SERVICE_ACCOUNT_JSON) {
-  console.warn('⚠️ GOOGLE_SERVICE_ACCOUNT environment variable is not set');
-}
-if (!TARGET_FOLDER_ID) {
-  console.warn('⚠️ GOOGLE_DRIVE_FOLDER_ID environment variable is not set');
-}
+// Cache the auth client (better cold-start performance)
+let cachedDriveClient: ReturnType<typeof google.drive> | null = null;
 
-// ────────────────────────────────────────────────
-// Google Drive Client Factory
-// ────────────────────────────────────────────────
 async function getDriveClient() {
-  if (!GOOGLE_SERVICE_ACCOUNT_JSON) {
-    throw new Error(
-      'Missing GOOGLE_SERVICE_ACCOUNT environment variable. ' +
-      'Please provide the full service account JSON.'
-    );
+  if (cachedDriveClient) return cachedDriveClient;
+
+  if (!SERVICE_ACCOUNT_EMAIL || !SERVICE_ACCOUNT_PRIVATE_KEY) {
+    throw new Error('Missing Google Service Account credentials in environment variables');
   }
 
-  let credentials;
-  try {
-    credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT_JSON);
+  // Fix common Vercel/Netlify escaping issues
+  let privateKey = SERVICE_ACCOUNT_PRIVATE_KEY
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '')
+    .trim();
 
-    // Most important: Fix double-escaped newlines that Vercel sometimes creates
-    if (typeof credentials.private_key === 'string') {
-      credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
-    }
-  } catch (parseError) {
-    console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON:', parseError);
-    throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT JSON format');
+  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    throw new Error('Invalid private key format - missing PEM header');
   }
 
   const auth = new google.auth.GoogleAuth({
-    credentials,
+    credentials: {
+      client_email: SERVICE_ACCOUNT_EMAIL,
+      private_key: privateKey,
+    },
     scopes: [
       'https://www.googleapis.com/auth/drive.file',
-      'https://www.googleapis.com/auth/drive.metadata.readonly',
+      'https://www.googleapis.com/auth/drive'
     ],
   });
 
-  return google.drive({ version: 'v3', auth });
+  cachedDriveClient = google.drive({ version: 'v3', auth });
+  return cachedDriveClient;
 }
 
 // ────────────────────────────────────────────────
-// Main API Handler
+// CORS & Response Helpers
+// ────────────────────────────────────────────────
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+} as const;
+
+function json(res: VercelResponse, status: number, data: unknown) {
+  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+  res.setHeader('Content-Type', 'application/json');
+  return res.status(status).json(data);
+}
+
+// ────────────────────────────────────────────────
+// Main Handler
 // ────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return json(res, 200, {});
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return json(res, 405, { error: 'Method not allowed - use POST' });
   }
 
   try {
-    // Validate input
-    const { base64Data, fileName, mimeType } = req.body as {
-      base64Data?: string;
-      fileName?: string;
-      mimeType?: string;
-    };
-
-    if (!base64Data || !fileName || !mimeType) {
-      return res.status(400).json({
-        error: 'Missing required fields: base64Data, fileName, mimeType',
+    // Check required env vars
+    if (!FOLDER_ID || !SERVICE_ACCOUNT_EMAIL || !SERVICE_ACCOUNT_PRIVATE_KEY) {
+      return json(res, 503, {
+        error: 'Server configuration error - missing environment variables',
+        missing: [
+          !FOLDER_ID ? 'GOOGLE_DRIVE_FOLDER_ID' : null,
+          !SERVICE_ACCOUNT_EMAIL ? 'GOOGLE_SERVICE_ACCOUNT_EMAIL' : null,
+          !SERVICE_ACCOUNT_PRIVATE_KEY ? 'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY' : null,
+        ].filter(Boolean),
       });
     }
 
-    if (!TARGET_FOLDER_ID) {
-      return res.status(500).json({ error: 'Server configuration error: TARGET_FOLDER_ID not set' });
+    // Validate request body
+    const { base64, filename, mimetype } = req.body as {
+      base64?: string;
+      filename?: string;
+      mimetype?: string;
+    };
+
+    if (!base64 || !filename || !mimetype) {
+      return json(res, 400, {
+        error: 'Missing required fields',
+        required: ['base64', 'filename', 'mimetype'],
+      });
     }
 
-    // Initialize Drive client
-    const drive = await getDriveClient();
-    console.log('Google Drive client initialized successfully');
+    // Clean base64 (support both with/without data-uri prefix)
+    const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
 
-    // Prepare file content
-    const base64Content = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
-    const buffer = Buffer.from(base64Content, 'base64');
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(cleanBase64, 'base64');
+    } catch {
+      return json(res, 400, { error: 'Invalid base64 string' });
+    }
 
+    if (buffer.length === 0) {
+      return json(res, 400, { error: 'Empty file content' });
+    }
+
+    // Create stream for upload
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
 
-    // ── Upload file ───────────────────────────────────────
-    const uploadResponse = await drive.files.create({
+    const drive = await getDriveClient();
+
+    // Upload file
+    const uploadResult = await drive.files.create({
       requestBody: {
-        name: fileName,
-        parents: [TARGET_FOLDER_ID],
+        name: filename,
+        parents: [FOLDER_ID],
       },
       media: {
-        mimeType: mimeType,
+        mimeType: mimetype,
         body: stream,
       },
       fields: 'id, name, webViewLink, webContentLink',
+      supportsAllDrives: true,
     });
 
-    const fileId = uploadResponse.data.id;
+    const fileId = uploadResult.data.id;
     if (!fileId) {
-      throw new Error('File uploaded but no ID returned');
+      throw new Error('Upload succeeded but no file ID returned');
     }
 
-    // ── Make file publicly readable ───────────────────────
+    // Make file publicly readable
     await drive.permissions.create({
       fileId,
       requestBody: {
         role: 'reader',
         type: 'anyone',
       },
+      supportsAllDrives: true,
     });
 
-    // Get final file metadata
-    const fileInfo = await drive.files.get({
+    // Final file info
+    const file = await drive.files.get({
       fileId,
       fields: 'id, name, webViewLink, webContentLink',
+      supportsAllDrives: true,
     });
 
-    console.log(`File uploaded successfully: ${fileInfo.data.name} (${fileId})`);
-
-    // Response
-    return res.status(200).json({
+    return json(res, 201, {
       success: true,
       fileId,
-      fileName: fileInfo.data.name,
-      webViewLink: fileInfo.data.webViewLink,
-      webContentLink: fileInfo.data.webContentLink,
-      directViewUrl: `https://drive.google.com/uc?export=view&id=${fileId}`,
+      filename: file.data.name,
+      webViewLink: file.data.webViewLink,
+      webContentLink: file.data.webContentLink,
+      directUrl: `https://drive.google.com/uc?id=${fileId}`,
+      previewUrl: `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`,
     });
   } catch (error: any) {
-    console.error('Upload handler error:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      details: error.errors || error.response?.data,
-    });
+    console.error('Upload error:', error);
 
-    const status = error.code === 403 ? 403 : 500;
-    const message =
-      error.message?.includes('invalid_grant') || error.message?.includes('JWT')
-        ? 'Authentication failed - check service account key format and permissions'
-        : error.message || 'Internal server error during file upload';
+    const status = error.code === 403 ? 403 :
+                   error.code === 401 ? 401 :
+                   error.code === 400 ? 400 : 500;
 
-    return res.status(status).json({ error: message });
+    let message = error.message || 'Internal server error';
+
+    if (error.message?.includes('invalid_grant') || error.message?.includes('JWT')) {
+      message = 'Authentication failed - invalid or malformed service account credentials';
+    } else if (error.code === 403) {
+      message = 'Permission denied - service account needs Editor access to the target folder';
+    } else if (error.message?.includes('not found')) {
+      message = 'Target folder not found';
+    }
+
+    return json(res, status, { error: message });
   }
 }
