@@ -350,35 +350,53 @@ export default function LeaveRequests() {
   };
 
   const handleDelete = async (id: string) => {
-    const request = requests.find(r => r.id === id);
-    if (!request) return;
+  const request = requests.find(r => r.id === id);
+  if (!request) return;
 
-    if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
-      setLoadingActionId(id);
-      try {
-        await firebaseService.deleteLeaveRequest(id);
-        await refreshData();
-        setSelectedIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(id);
-          return newSet;
-        });
-        toast({
-          title: "Request Deleted",
-          description: `Approved leave for ${request.employeeName} has been deleted.`,
-        });
-      } catch (error) {
-        console.error("Error deleting request:", error);
-        toast({
-          title: "Delete Failed",
-          description: "Could not delete the leave request. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoadingActionId(null);
+  if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
+    setLoadingActionId(id);
+    try {
+      // 1. Delete associated images from Google Drive first
+      // Assuming your request object has an 'attachments' array with filenames
+      if (request.attachments && request.attachments.length > 0) {
+        for (const file of request.attachments) {
+          // Use the POST endpoint we created to delete by filename
+          await fetch('/api/delete-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileName: file.name }),
+          });
+        }
       }
+
+      // 2. Delete the record from Firebase
+      await firebaseService.deleteLeaveRequest(id);
+      
+      // 3. UI Updates
+      await refreshData();
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+
+      toast({
+        title: "Request Deleted",
+        description: `Approved leave for ${request.employeeName} and associated files have been deleted.`,
+      });
+
+    } catch (error: any) {
+      console.error("Error deleting request:", error);
+      toast({
+        title: "Delete Failed",
+        description: "Could not delete the leave request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingActionId(null);
     }
-  };
+  }
+};
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
