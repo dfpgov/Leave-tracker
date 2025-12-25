@@ -2,26 +2,19 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
-// ────────────────────────────────────────────────
-// Environment variables
-// ────────────────────────────────────────────────
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 const SERVICE_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
-// Cache the drive client per execution instance
 let cachedDrive: any = null;
 
 async function getDriveClient() {
   if (cachedDrive) return cachedDrive;
-
   if (!SERVICE_EMAIL || !PRIVATE_KEY) {
-    throw new Error('Missing Service Account Credentials (Email or Private Key)');
+    throw new Error('Missing Service Account Credentials');
   }
 
-  // Handle Vercel's tendency to escape newline characters in env vars
   const formattedKey = PRIVATE_KEY.replace(/\\n/g, '\n');
-
   const auth = new google.auth.JWT(
     SERVICE_EMAIL,
     null,
@@ -33,9 +26,6 @@ async function getDriveClient() {
   return cachedDrive;
 }
 
-// ────────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────────
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -48,39 +38,36 @@ function sendJson(res: VercelResponse, status: number, body: unknown) {
   res.status(status).json(body);
 }
 
-// ────────────────────────────────────────────────
-// Main handler
-// ────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method === 'OPTIONS') {
-    return sendJson(res, 200, {});
-  }
-
-  if (req.method !== 'POST') {
-    return sendJson(res, 405, { error: 'Method not allowed. Use POST.' });
-  }
+  if (req.method === 'OPTIONS') return sendJson(res, 200, {});
+  if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
 
   try {
-    if (!FOLDER_ID) {
-      return sendJson(res, 503, { error: 'Server configuration error - missing FOLDER_ID' });
-    }
-
-    const { base64, filename, mimetype } = req.body;
+    const drive = await getDriveClient();
+    
+    // Support both naming conventions (your frontend uses camelCase)
+    const base64 = req.body.base64Data || req.body.base64;
+    const filename = req.body.fileName || req.body.filename;
+    const mimetype = req.body.mimeType || req.body.mimetype;
 
     if (!base64 || !filename || !mimetype) {
-      return sendJson(res, 400, { error: 'Missing required fields (base64, filename, or mimetype)' });
+      return sendJson(res, 400, { 
+        error: 'Missing required fields',
+        received: { 
+          hasBase64: !!base64, 
+          hasFilename: !!filename, 
+          hasMimetype: !!mimetype 
+        }
+      });
     }
 
-    // Convert Base64 to Stream
+    // Process the base64 string
     const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
     const buffer = Buffer.from(cleanBase64, 'base64');
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
 
-    const drive = await getDriveClient();
-
-    // 1. Upload the file
     const uploadResult = await drive.files.create({
       requestBody: {
         name: filename,
@@ -95,29 +82,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const fileId = uploadResult.data.id;
 
-    // 2. Set permissions so "anyone with the link" can view (Optional)
+    // Optional: Make viewable by anyone with link
     await drive.permissions.create({
       fileId,
-      requestBody: {
-        role: 'reader',
-        type: 'anyone',
-      },
+      requestBody: { role: 'reader', type: 'anyone' },
     });
 
     return sendJson(res, 201, {
       success: true,
       fileId,
       filename: uploadResult.data.name,
-      webViewLink: uploadResult.data.webViewLink,
       directUrl: `https://drive.google.com/uc?export=view&id=${fileId}`,
     });
 
   } catch (error: any) {
-    console.error('Service Account Upload Error:', error);
-    
-    const statusCode = error.code && typeof error.code === 'number' ? error.code : 500;
-    return sendJson(res, statusCode, {
-      error: error.message || 'Upload failed',
-    });
+    console.error('Upload Error:', error);
+    return sendJson(res, 500, { error: error.message || 'Upload failed' });
   }
 }
