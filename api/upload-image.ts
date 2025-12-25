@@ -2,101 +2,74 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
-const SERVICE_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-const PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-
-let cachedDrive: any = null;
 
 async function getDriveClient() {
-  if (cachedDrive) return cachedDrive;
-  if (!SERVICE_EMAIL || !PRIVATE_KEY) {
-    throw new Error('Missing Service Account Credentials');
-  }
-
-  const formattedKey = PRIVATE_KEY.replace(/\\n/g, '\n');
-  const auth = new google.auth.JWT(
-    SERVICE_EMAIL,
-    null,
-    formattedKey,
-    ['https://www.googleapis.com/auth/drive.file']
+  const oauth2Client = new google.auth.OAuth2(
+    CLIENT_ID,
+    CLIENT_SECRET,
+    'https://developers.google.com/oauthplayground'
   );
 
-  cachedDrive = google.drive({ version: 'v3', auth });
-  return cachedDrive;
+  oauth2Client.setCredentials({
+    refresh_token: REFRESH_TOKEN,
+  });
+
+  return google.drive({ version: 'v3', auth: oauth2Client });
 }
 
+// CORS & JSON Helpers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
-} as const;
-
-function sendJson(res: VercelResponse, status: number, body: unknown) {
-  Object.entries(corsHeaders).forEach(([key, value]) => res.setHeader(key, value));
-  res.setHeader('Content-Type', 'application/json');
-  res.status(status).json(body);
-}
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method === 'OPTIONS') return sendJson(res, 200, {});
-  if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
+  // Set CORS headers
+  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
 
   try {
-    const drive = await getDriveClient();
-    
-    // Support both naming conventions (your frontend uses camelCase)
-    const base64 = req.body.base64Data || req.body.base64;
-    const filename = req.body.fileName || req.body.filename;
-    const mimetype = req.body.mimeType || req.body.mimetype;
+    const { base64Data, fileName, mimeType } = req.body;
 
-    if (!base64 || !filename || !mimetype) {
-      return sendJson(res, 400, { 
-        error: 'Missing required fields',
-        received: { 
-          hasBase64: !!base64, 
-          hasFilename: !!filename, 
-          hasMimetype: !!mimetype 
-        }
-      });
+    if (!base64Data || !fileName || !mimeType) {
+      return res.status(400).json({ error: 'Missing fields' });
     }
 
-    // Process the base64 string
-    const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
-    const buffer = Buffer.from(cleanBase64, 'base64');
+    const drive = await getDriveClient();
+
+    // Convert base64 to stream
+    const buffer = Buffer.from(base64Data.split(',')[1] || base64Data, 'base64');
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
 
-    const uploadResult = await drive.files.create({
+    const file = await drive.files.create({
       requestBody: {
-        name: filename,
-        parents: [FOLDER_ID],
+        name: fileName,
+        parents: [FOLDER_ID!],
       },
       media: {
-        mimeType: mimetype,
+        mimeType: mimeType,
         body: stream,
       },
-      fields: 'id, name, webViewLink',
+      fields: 'id, webViewLink',
     });
 
-    const fileId = uploadResult.data.id;
-
-    // Optional: Make viewable by anyone with link
-    await drive.permissions.create({
-      fileId,
-      requestBody: { role: 'reader', type: 'anyone' },
-    });
-
-    return sendJson(res, 201, {
+    return res.status(201).json({
       success: true,
-      fileId,
-      filename: uploadResult.data.name,
-      directUrl: `https://drive.google.com/uc?export=view&id=${fileId}`,
+      fileId: file.data.id,
+      link: file.data.webViewLink
     });
 
   } catch (error: any) {
-    console.error('Upload Error:', error);
-    return sendJson(res, 500, { error: error.message || 'Upload failed' });
+    console.error(error);
+    return res.status(500).json({ error: error.message });
   }
 }
