@@ -4,51 +4,33 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
-let connectionSettings: any;
-
-async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return connectionSettings.settings.access_token;
-  }
-  
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
-
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+async function getGoogleDriveClient() {
+  const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
+  if (!GOOGLE_SERVICE_ACCOUNT) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT environment variable is not set');
   }
 
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-drive',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
-    }
-  ).then(res => res.json()).then(data => data.items?.[0]);
-
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-
-  if (!connectionSettings || !accessToken) {
-    throw new Error('Google Drive not connected');
+  let credentials;
+  try {
+    credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
+  } catch (err) {
+    throw new Error('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON: ' + (err as any).message);
   }
-  return accessToken;
-}
 
-async function getUncachableGoogleDriveClient() {
-  const accessToken = await getAccessToken();
+  // Handle newline characters in private key if it's from an env var
+  if (credentials.private_key) {
+    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+  }
 
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({
-    access_token: accessToken
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: [
+      'https://www.googleapis.com/auth/drive.metadata.readonly',
+      'https://www.googleapis.com/auth/drive.file'
+    ],
   });
 
-  return google.drive({ version: 'v3', auth: oauth2Client });
+  return google.drive({ version: 'v3', auth });
 }
 
 // The target folder ID from the user's Google Drive URL
@@ -64,7 +46,7 @@ export async function uploadImageToGoogleDrive(
   fileName: string,
   mimeType: string
 ): Promise<{ fileId: string; webViewLink: string; webContentLink: string }> {
-  const drive = await getUncachableGoogleDriveClient();
+  const drive = await getGoogleDriveClient();
 
   if (!TARGET_FOLDER_ID) {
     throw new Error('GOOGLE_DRIVE_FOLDER_ID environment variable is not set');
@@ -125,7 +107,7 @@ export async function uploadImageToGoogleDrive(
 
 export async function deleteImageFromGoogleDrive(fileId: string): Promise<void> {
   try {
-    const drive = await getUncachableGoogleDriveClient();
+    const drive = await getGoogleDriveClient();
     await drive.files.delete({ fileId });
   } catch (error) {
     console.error('Error deleting file from Google Drive:', error);
@@ -133,7 +115,7 @@ export async function deleteImageFromGoogleDrive(fileId: string): Promise<void> 
 }
 
 export async function getFileSizes(): Promise<{ totalBytes: number; fileCount: number; files: Array<{ id: string; name: string; size: number }> }> {
-  const drive = await getUncachableGoogleDriveClient();
+  const drive = await getGoogleDriveClient();
   
   if (!TARGET_FOLDER_ID) {
     throw new Error('GOOGLE_DRIVE_FOLDER_ID environment variable is not set');
