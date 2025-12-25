@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase"; 
 import { firebaseService, LeaveRequest, Employee, LeaveType, calculateDays, User } from "@/lib/firebaseStorage";
 import {
   Table,
@@ -349,8 +351,7 @@ export default function LeaveRequests() {
     setIsDialogOpen(true);
   };
 
- const handleDelete = async (id: string) => {
-  // 1. Find local reference for the confirmation message
+ const handleDelete = async (id) => {
   const request = requests.find(r => r.id === id);
   if (!request) return;
 
@@ -358,50 +359,44 @@ export default function LeaveRequests() {
     setLoadingActionId(id);
     
     try {
-      // 2. FETCH FULL DATA FROM FIREBASE (leaveRequests -> docId)
-      // This ensures we get the "attachmentFileName" directly from the source
+      // --- STEP A: FETCH DATA FROM FIREBASE ---
       const docRef = doc(db, "leaveRequests", id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         const fullData = docSnap.data();
         
-        // CONSOLE LOG THE STRUCTURE AS REQUESTED
-        console.log("--- Firebase Data Fetch ---");
-        console.log("Full Data Object:", fullData);
-        console.log("Attachment File Name:", fullData.attachmentFileName);
-        console.log("---------------------------");
+        // Console log the structure as you requested
+        console.log("--- Firebase Data Fetch Result ---");
+        console.log("Full Object:", fullData);
+        console.log("Found Filename:", fullData.attachmentFileName);
 
-        // 3. DELETE FROM GOOGLE DRIVE
-        // Use the filename fetched directly from Firebase data
+        // --- STEP B: DELETE FROM DRIVE ---
         if (fullData.attachmentFileName) {
           try {
-            const driveResponse = await fetch('/api/delete-image', {
+            const response = await fetch('/api/delete-image', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ fileName: fullData.attachmentFileName }),
             });
 
-            if (!driveResponse.ok) {
-              const errorText = await driveResponse.text();
-              console.error('Drive API responded with error:', errorText);
+            if (!response.ok) {
+              console.error('Drive API failed:', await response.text());
             } else {
-              console.log("Google Drive deletion request successful.");
+              console.log("Drive file deleted successfully.");
             }
           } catch (driveErr) {
-            console.error('Network error contacting delete-image API:', driveErr);
+            console.error('API Connection Error:', driveErr);
           }
         }
       } else {
-        console.warn("No document found in Firebase for ID:", id);
+        console.warn("Document not found in Firebase.");
       }
 
-      // 4. DELETE THE RECORD FROM FIREBASE
+      // --- STEP C: DELETE FROM FIREBASE ---
       await firebaseService.deleteLeaveRequest(id);
       
-      // 5. REFRESH UI STATE
+      // --- STEP D: REFRESH UI ---
       await refreshData();
       setSelectedIds(prev => {
         const newSet = new Set(prev);
@@ -414,11 +409,11 @@ export default function LeaveRequests() {
         description: `Leave for ${request.employeeName} has been deleted.`,
       });
 
-    } catch (error: any) {
+    } catch (error) {
       console.error("Critical Error in delete process:", error);
       toast({
         title: "Delete Failed",
-        description: "An error occurred. Please check the console.",
+        description: "An error occurred. Check console for details.",
         variant: "destructive",
       });
     } finally {
@@ -426,6 +421,8 @@ export default function LeaveRequests() {
     }
   }
 };
+
+  
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     if (confirm(`Are you sure you want to delete ${selectedIds.size} leave request(s)?`)) {
