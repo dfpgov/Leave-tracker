@@ -1,40 +1,42 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { google } from 'googleapis';
+import React from 'react';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // 1. Handle CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+const ImageCard = ({ imageName }) => {
+  
+  const handleDelete = async () => {
+    // Optional: Add a confirmation dialog
+    if (!window.confirm(`Are you sure you want to delete ${imageName}?`)) return;
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'DELETE') return res.status(405).json({ error: 'Use DELETE' });
+    try {
+      const response = await fetch('/api/delete-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: imageName }) // Pass the dynamic name here
+      });
+      
+      const result = await response.json();
 
-  try {
-    // 2. Get the ID from the URL (Vercel maps [fileId] to req.query.fileId)
-    const { fileId } = req.query;
-
-    if (!fileId || typeof fileId !== 'string') {
-      return res.status(400).json({ error: 'File ID missing in URL' });
+      if (result.success) {
+        alert('Deleted successfully!');
+        // Refresh your list or remove the item from state here
+      } else {
+        alert('Error: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Fetch error:', error);
     }
+  };
 
-    // 3. Setup Auth (Using your OAuth credentials)
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      'https://developers.google.com/oauthplayground'
-    );
-    oauth2Client.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
-    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+  return (
+    <div className="border p-4">
+      <img src={`https://.../${imageName}`} alt="Drive content" />
+      <button 
+        onClick={handleDelete}
+        className="bg-red-500 text-white px-4 py-2 mt-2"
+      >
+        Delete Image
+      </button>
+    </div>
+  );
+};
 
-    // 4. Delete from Google
-    await drive.files.delete({ fileId: fileId });
-
-    return res.status(200).json({ success: true, message: `Deleted ${fileId}` });
-  } catch (error: any) {
-    console.error('Delete error:', error);
-    return res.status(error.code === 404 ? 404 : 500).json({ 
-      error: error.code === 404 ? 'File not found on Drive' : error.message 
-    });
-  }
-}
+export default ImageCard;
