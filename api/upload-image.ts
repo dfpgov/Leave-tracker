@@ -4,20 +4,23 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 
 // ────────────────────────────────────────────────
-// Environment variables
+// Environment variables (separate credentials - recommended)
 // ────────────────────────────────────────────────
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 const SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const SERVICE_ACCOUNT_PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
-// Cache the auth client (better cold-start performance)
-let cachedDriveClient: ReturnType<typeof google.drive> | null = null;
+// Cache the drive client for better performance
+let cachedDrive: ReturnType<typeof google.drive> | null = null;
 
 async function getDriveClient() {
-  if (cachedDriveClient) return cachedDriveClient;
+  if (cachedDrive) return cachedDrive;
 
   if (!SERVICE_ACCOUNT_EMAIL || !SERVICE_ACCOUNT_PRIVATE_KEY) {
-    throw new Error('Missing Google Service Account credentials in environment variables');
+    throw new Error(
+      'Missing Google Service Account credentials. ' +
+      'Please set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY'
+    );
   }
 
   // Fix common Vercel/Netlify escaping issues
@@ -26,8 +29,9 @@ async function getDriveClient() {
     .replace(/\\r/g, '')
     .trim();
 
-  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-    throw new Error('Invalid private key format - missing PEM header');
+  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || 
+      !privateKey.includes('-----END PRIVATE KEY-----')) {
+    throw new Error('Private key format appears invalid - missing PEM headers');
   }
 
   const auth = new google.auth.GoogleAuth({
@@ -41,8 +45,8 @@ async function getDriveClient() {
     ],
   });
 
-  cachedDriveClient = google.drive({ version: 'v3', auth });
-  return cachedDriveClient;
+  cachedDrive = google.drive({ version: 'v3', auth });
+  return cachedDrive;
 }
 
 // ────────────────────────────────────────────────
@@ -54,29 +58,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type',
 } as const;
 
-function json(res: VercelResponse, status: number, data: unknown) {
+function sendJson(res: VercelResponse, status: number, body: unknown) {
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
   res.setHeader('Content-Type', 'application/json');
-  return res.status(status).json(data);
+  return res.status(status).json(body);
 }
 
 // ────────────────────────────────────────────────
-// Main Handler
+// Main handler
 // ────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return json(res, 200, {});
+    return sendJson(res, 200, {});
   }
 
   if (req.method !== 'POST') {
-    return json(res, 405, { error: 'Method not allowed - use POST' });
+    return sendJson(res, 405, { error: 'Method not allowed - use POST' });
   }
 
   try {
-    // Check required env vars
+    // Early env validation
     if (!FOLDER_ID || !SERVICE_ACCOUNT_EMAIL || !SERVICE_ACCOUNT_PRIVATE_KEY) {
-      return json(res, 503, {
+      return sendJson(res, 503, {
         error: 'Server configuration error - missing environment variables',
         missing: [
           !FOLDER_ID ? 'GOOGLE_DRIVE_FOLDER_ID' : null,
@@ -86,7 +89,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Validate request body
     const { base64, filename, mimetype } = req.body as {
       base64?: string;
       filename?: string;
@@ -94,34 +96,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     if (!base64 || !filename || !mimetype) {
-      return json(res, 400, {
+      return sendJson(res, 400, {
         error: 'Missing required fields',
         required: ['base64', 'filename', 'mimetype'],
       });
     }
 
-    // Clean base64 (support both with/without data-uri prefix)
+    // Handle data URI prefix if present
     const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
 
     let buffer: Buffer;
     try {
       buffer = Buffer.from(cleanBase64, 'base64');
     } catch {
-      return json(res, 400, { error: 'Invalid base64 string' });
+      return sendJson(res, 400, { error: 'Invalid base64 data' });
     }
 
     if (buffer.length === 0) {
-      return json(res, 400, { error: 'Empty file content' });
+      return sendJson(res, 400, { error: 'Empty file content' });
     }
 
-    // Create stream for upload
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
 
     const drive = await getDriveClient();
 
-    // Upload file
+    // Upload
     const uploadResult = await drive.files.create({
       requestBody: {
         name: filename,
@@ -136,11 +137,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const fileId = uploadResult.data.id;
-    if (!fileId) {
-      throw new Error('Upload succeeded but no file ID returned');
-    }
+    if (!fileId) throw new Error('Upload succeeded but no file ID returned');
 
-    // Make file publicly readable
+    // Make public
     await drive.permissions.create({
       fileId,
       requestBody: {
@@ -150,14 +149,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       supportsAllDrives: true,
     });
 
-    // Final file info
+    // Get final info
     const file = await drive.files.get({
       fileId,
       fields: 'id, name, webViewLink, webContentLink',
       supportsAllDrives: true,
     });
 
-    return json(res, 201, {
+    return sendJson(res, 201, {
       success: true,
       fileId,
       filename: file.data.name,
@@ -173,16 +172,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                    error.code === 401 ? 401 :
                    error.code === 400 ? 400 : 500;
 
-    let message = error.message || 'Internal server error';
+    let message = error.message || 'Upload failed';
 
     if (error.message?.includes('invalid_grant') || error.message?.includes('JWT')) {
-      message = 'Authentication failed - invalid or malformed service account credentials';
+      message = 'Authentication failed - check service account key format';
     } else if (error.code === 403) {
-      message = 'Permission denied - service account needs Editor access to the target folder';
+      message = 'Permission denied - service account needs Editor access to folder';
     } else if (error.message?.includes('not found')) {
       message = 'Target folder not found';
     }
 
-    return json(res, status, { error: message });
+    return sendJson(res, status, { error: message });
   }
 }
