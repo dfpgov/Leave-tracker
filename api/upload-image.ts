@@ -15,16 +15,32 @@ if (!TARGET_FOLDER_ID) console.warn("⚠️ GOOGLE_DRIVE_FOLDER_ID env var not s
 // Create Google Drive client
 // ------------------
 async function getDriveClient() {
-  if (!GOOGLE_SERVICE_ACCOUNT) throw new Error("No Google credentials found");
+  const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
+  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
   let credentials;
-  try {
-    credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
-  } catch (err) {
-    throw new Error("Failed to parse GOOGLE_SERVICE_ACCOUNT JSON: " + (err as any).message);
+
+  if (GOOGLE_SERVICE_ACCOUNT) {
+    try {
+      credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
+    } catch (err) {
+      console.warn('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON, falling back to individual variables');
+    }
   }
 
-  // Handle newline characters in private key if it's from an env var
+  if (!credentials && GOOGLE_SERVICE_ACCOUNT_EMAIL && GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) {
+    credentials = {
+      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    };
+  }
+
+  if (!credentials) {
+    throw new Error("No Google credentials found. Please set GOOGLE_SERVICE_ACCOUNT or individual EMAIL and PRIVATE_KEY variables.");
+  }
+
+  // Handle newline characters in private key
   if (credentials.private_key) {
     credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
   }

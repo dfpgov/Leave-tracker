@@ -3,15 +3,28 @@ import { google } from 'googleapis';
 
 async function getGoogleDriveClient() {
   const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
-  if (!GOOGLE_SERVICE_ACCOUNT) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT environment variable is not set');
-  }
+  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
   let credentials;
-  try {
-    credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
-  } catch (err) {
-    throw new Error('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON: ' + (err as any).message);
+
+  if (GOOGLE_SERVICE_ACCOUNT) {
+    try {
+      credentials = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
+    } catch (err) {
+      console.warn('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON, falling back to individual variables');
+    }
+  }
+
+  if (!credentials && GOOGLE_SERVICE_ACCOUNT_EMAIL && GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) {
+    credentials = {
+      client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    };
+  }
+
+  if (!credentials) {
+    throw new Error('Google Drive credentials not set. Please set GOOGLE_SERVICE_ACCOUNT or individual EMAIL and PRIVATE_KEY variables.');
   }
 
   // Handle newline characters in private key
