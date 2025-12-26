@@ -352,56 +352,60 @@ export default function LeaveRequests() {
   };
 
 const handleDelete = async (id) => {
+  // 1. Locate the specific request in your local state
   const request = requests.find(r => r.id === id);
   if (!request) return;
 
-  if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
+  // 2. User Confirmation
+  if (window.confirm(`Are you sure you want to delete the leave request for ${request.employeeName}?`)) {
     setLoadingActionId(id);
     
     try {
-      // --- STEP A: FETCH DATA FROM FIREBASE ---
-      // We do this to get the specific "attachmentFileName" stored in this record
+      // --- STEP A: FETCH THE RECORD FROM FIREBASE ---
+      // We need to get the specific attachmentUrl stored in the database
       const docRef = doc(db, "leaveRequests", id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         const fullData = docSnap.data();
-        const fileNameToDelete = fullData.attachmentFileName;
+        const urlToDelete = fullData.attachmentUrl; // Format: https://drive.google.com/uc?id=...
 
-        console.log("--- Deletion Started ---");
-        console.log("Targeting File:", fileNameToDelete);
-
-        // --- STEP B: DELETE FROM GOOGLE DRIVE ---
-        if (fileNameToDelete) {
+        // --- STEP B: DELETE FROM GOOGLE DRIVE (Via Vercel API) ---
+        if (urlToDelete) {
+          console.log("Found Drive URL. Initiating cleanup:", urlToDelete);
+          
           try {
-            // Note: Use absolute URL if testing across different domains, 
-            // otherwise '/api/delete-image' is fine.
-            const response = await fetch('https://leave-tracker-new.vercel.app/api/delete-image', {
+            // We use a relative path. Vercel automatically routes this to /api/delete-image.ts
+            const response = await fetch('/api/delete-image', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fileName: fileNameToDelete }),
+              body: JSON.stringify({ attachmentUrl: urlToDelete }),
             });
 
             const result = await response.json();
 
             if (!response.ok) {
-              console.error('Drive API failed:', result.error || 'Unknown error');
+              console.error('Drive API Error:', result.error);
+              // We do NOT throw an error here so that the Firebase record can still be deleted
             } else {
-              console.log("Drive file deleted successfully:", result);
+              console.log("Google Drive file deleted successfully:", result);
             }
           } catch (driveErr) {
-            console.error('Network Error calling Drive API:', driveErr);
+            console.error('Connection to Delete API failed:', driveErr);
           }
-        } else {
-          console.log("No attachment found for this record, skipping Drive deletion.");
         }
+      } else {
+        console.warn("Document not found in Firebase. It may have already been deleted.");
       }
 
-      // --- STEP C: DELETE FROM FIREBASE ---
+      // --- STEP C: DELETE THE RECORD FROM FIREBASE ---
+      // This ensures the row disappears from your table
       await firebaseService.deleteLeaveRequest(id);
       
-      // --- STEP D: REFRESH UI ---
+      // --- STEP D: REFRESH THE UI ---
       await refreshData();
+      
+      // Clear selection state if applicable
       setSelectedIds(prev => {
         const newSet = new Set(prev);
         newSet.delete(id);
@@ -409,18 +413,19 @@ const handleDelete = async (id) => {
       });
 
       toast({
-        title: "Request Deleted",
-        description: `Leave record for ${request.employeeName} has been removed.`,
+        title: "Deletion Successful",
+        description: `The record for ${request.employeeName} has been removed.`,
       });
 
     } catch (error) {
-      console.error("Critical Error in delete process:", error);
+      console.error("Critical error in delete process:", error);
       toast({
-        title: "Delete Failed",
-        description: "An error occurred during deletion.",
+        title: "Error",
+        description: "An unexpected error occurred. Check the console.",
         variant: "destructive",
       });
     } finally {
+      // Stop the loading spinner
       setLoadingActionId(null);
     }
   }
