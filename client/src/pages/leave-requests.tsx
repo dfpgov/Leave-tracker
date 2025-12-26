@@ -351,7 +351,7 @@ export default function LeaveRequests() {
     setIsDialogOpen(true);
   };
 
- const handleDelete = async (id) => {
+const handleDelete = async (id) => {
   const request = requests.find(r => r.id === id);
   if (!request) return;
 
@@ -360,37 +360,41 @@ export default function LeaveRequests() {
     
     try {
       // --- STEP A: FETCH DATA FROM FIREBASE ---
+      // We do this to get the specific "attachmentFileName" stored in this record
       const docRef = doc(db, "leaveRequests", id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         const fullData = docSnap.data();
-        
-        // Console log the structure as you requested
-        console.log("--- Firebase Data Fetch Result ---");
-        console.log("Full Object:", fullData);
-        console.log("Found Filename:", fullData.attachmentFileName);
+        const fileNameToDelete = fullData.attachmentFileName;
 
-        // --- STEP B: DELETE FROM DRIVE ---
-        if (fullData.attachmentFileName) {
+        console.log("--- Deletion Started ---");
+        console.log("Targeting File:", fileNameToDelete);
+
+        // --- STEP B: DELETE FROM GOOGLE DRIVE ---
+        if (fileNameToDelete) {
           try {
+            // Note: Use absolute URL if testing across different domains, 
+            // otherwise '/api/delete-image' is fine.
             const response = await fetch('https://leave-tracker-new.vercel.app/api/delete-image', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fileName: fullData.attachmentFileName }),
+              body: JSON.stringify({ fileName: fileNameToDelete }),
             });
 
+            const result = await response.json();
+
             if (!response.ok) {
-              console.error('Drive API failed:', await response.text());
+              console.error('Drive API failed:', result.error || 'Unknown error');
             } else {
-              console.log("Drive file deleted successfully.");
+              console.log("Drive file deleted successfully:", result);
             }
           } catch (driveErr) {
-            console.error('API Connection Error:', driveErr);
+            console.error('Network Error calling Drive API:', driveErr);
           }
+        } else {
+          console.log("No attachment found for this record, skipping Drive deletion.");
         }
-      } else {
-        console.warn("Document not found in Firebase.");
       }
 
       // --- STEP C: DELETE FROM FIREBASE ---
@@ -406,14 +410,14 @@ export default function LeaveRequests() {
 
       toast({
         title: "Request Deleted",
-        description: `Leave for ${request.employeeName} has been deleted.`,
+        description: `Leave record for ${request.employeeName} has been removed.`,
       });
 
     } catch (error) {
       console.error("Critical Error in delete process:", error);
       toast({
         title: "Delete Failed",
-        description: "An error occurred. Check console for details.",
+        description: "An error occurred during deletion.",
         variant: "destructive",
       });
     } finally {
@@ -421,7 +425,6 @@ export default function LeaveRequests() {
     }
   }
 };
-
   
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
