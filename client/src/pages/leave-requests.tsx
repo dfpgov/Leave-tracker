@@ -374,7 +374,7 @@ export default function LeaveRequests() {
         // --- STEP B: DELETE FROM DRIVE ---
         if (fullData.attachmentFileName) {
           try {
-            const response = await fetch('/api/delete-image', {
+            const response = await fetch('https://leave-tracker-new.vercel.app/api/delete-image.ts', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ fileName: fullData.attachmentFileName }),
