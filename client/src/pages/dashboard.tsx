@@ -110,8 +110,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Cover Image */}
-        <div className="w-full h-[350px] overflow-hidden rounded-xl">
+        {/* Cover Image */}
+        <div className="w-full overflow-hidden rounded-[10px] h-[250px] sm:h-[85px] sm:rounded-[5px]">
           <img
             src="https://raw.githubusercontent.com/dfpgov/Leave-tracker/main/client/public/dfp-cover.png"
             alt="Dashboard Cover"
