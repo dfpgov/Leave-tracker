@@ -225,7 +225,7 @@ export default function Employees() {
                     <FormItem>
                       <FormLabel>Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="John Doe" {...field} />
+                        <Input placeholder="Anisur Rahman" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -239,7 +239,7 @@ export default function Employees() {
                         <FormItem>
                         <FormLabel>Designation</FormLabel>
                         <FormControl>
-                            <Input placeholder="Software Engineer" {...field} />
+                            <Input placeholder="Deputy Director" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -252,7 +252,7 @@ export default function Employees() {
                         <FormItem>
                         <FormLabel>Section</FormLabel>
                         <FormControl>
-                            <Input placeholder="IT" {...field} />
+                            <Input placeholder="Advertisement & Audit" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
