@@ -7,7 +7,7 @@ import { isAfter, isBefore, addDays } from "date-fns";
 import { Users, UserCheck, Clock, Calendar, CalendarDays } from "lucide-react";
 import { useLocation } from "wouter";
 import { parseDate, safeFormat } from "@/lib/dateUtils";
-
+import coverImage from "../../image/dfp-cover.png";
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const currentUser = firebaseService.getCurrentUser();
@@ -111,6 +111,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Cover Image */}
+        <div className="w-full h-[350px] overflow-hidden rounded-xl">
+          <img
+            src={coverImage}
+            alt="Dashboard Cover"
+            className="w-full h-full object-cover"
+          />
+        </div>
         <div>
             <h1 className="text-3xl font-bold font-heading">Dashboard</h1>
             <p className="text-muted-foreground mt-1">Overview of leave records and employee status</p>
