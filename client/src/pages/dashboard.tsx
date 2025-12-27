@@ -7,7 +7,7 @@ import { isAfter, isBefore, addDays } from "date-fns";
 import { Users, UserCheck, Clock, Calendar, CalendarDays } from "lucide-react";
 import { useLocation } from "wouter";
 import { parseDate, safeFormat } from "@/lib/dateUtils";
-import coverImage from "../../attached_assets/dfp-cover.png";
+import coverImage from "../public/dfp-cover.png";
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const currentUser = firebaseService.getCurrentUser();
