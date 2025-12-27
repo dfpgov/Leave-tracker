@@ -333,7 +333,6 @@ export default function Employees() {
                 <TableHead>Designation</TableHead>
                 <TableHead>Section</TableHead>
                 <TableHead>Gender</TableHead>
-                <TableHead>Last Edited</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
             </TableRow>
             </TableHeader>
@@ -357,9 +356,7 @@ export default function Employees() {
                     <TableCell>{employee.designation}</TableCell>
                     <TableCell>{employee.department}</TableCell>
                     <TableCell>{employee.gender}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                        {safeFormat(employee.lastEdited, "PP p")}
-                    </TableCell>
+                    
                     <TableCell className="text-right">
                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(employee)}>
