@@ -161,7 +161,6 @@ export default function LeaveTypes() {
         <Table>
             <TableHeader>
             <TableRow className="bg-muted/30">
-                <TableHead>Leave ID</TableHead>
                 <TableHead>Leave Name</TableHead>
                 <TableHead>Max Days Allowed</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -170,7 +169,6 @@ export default function LeaveTypes() {
             <TableBody>
             {leaveTypes.map((type) => (
                 <TableRow key={type.id}>
-                <TableCell className="font-mono text-xs text-muted-foreground">{type.id}</TableCell>
                 <TableCell className="font-medium">{type.name}</TableCell>
                 <TableCell>
                     {type.maxDays ? (
