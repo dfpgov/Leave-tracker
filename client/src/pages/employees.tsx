@@ -43,7 +43,7 @@ import { safeFormat } from "@/lib/dateUtils";
 const employeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
   designation: z.string().min(1, "Designation is required"),
-  department: z.string().min(1, "Section is required"),
+  department: z.string().optional(),
   gender: z.enum(["Male", "Female", "Other"]),
 });
 
@@ -245,7 +245,7 @@ export default function Employees() {
                         </FormItem>
                     )}
                     />
-                  {/* <FormField
+                  <FormField
                     control={form.control}
                     name="department"
                     render={({ field }) => (
@@ -257,7 +257,7 @@ export default function Employees() {
                         <FormMessage />
                         </FormItem>
                     )} 
-                    />*/}
+                    />
                 </div>
                 <FormField
                   control={form.control}
