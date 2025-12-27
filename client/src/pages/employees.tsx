@@ -245,7 +245,7 @@ export default function Employees() {
                         </FormItem>
                     )}
                     />
-                    <FormField
+                  {/* <FormField
                     control={form.control}
                     name="department"
                     render={({ field }) => (
@@ -256,7 +256,7 @@ export default function Employees() {
                         </FormControl>
                         <FormMessage />
                         </FormItem>
-                    )}
+                    )} */}
                     />
                 </div>
                 <FormField
