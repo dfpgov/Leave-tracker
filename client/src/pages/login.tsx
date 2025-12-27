@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { firebaseService } from "@/lib/firebaseStorage";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Eye, EyeOff } from "lucide-react";
-import logoImg from "@assets/images_(13)_1766356753117.png";
 
 export default function Login() {
   const { toast } = useToast();
@@ -68,7 +67,7 @@ export default function Login() {
           <div className="flex items-center gap-4">
             {/* Logo - circular with government seal style */}
             <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-              <img src={logoImg} alt="Logo" className="w-full h-full object-cover" />
+              <img src="https://raw.githubusercontent.com/dfpgov/Leave-tracker/main/client/public/images_(13)_1766356753117.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-wide">Leave Tracker</h1>
