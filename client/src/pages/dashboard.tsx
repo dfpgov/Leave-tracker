@@ -105,9 +105,8 @@ export default function Dashboard() {
   };
 
   const peopleOnLeave = getEmployeesOnLeave();
-  const upcomingHolidays = getUpcomingHolidays();
-  const upcomingLeaves = getUpcomingLeaves();
-  const upcomingHolidays = (() => {
+
+  const getUpcomingHolidays = () => {
   console.log("RAW holidays from DB:", holidays);
 
   if (!holidays || holidays.length === 0) {
@@ -138,8 +137,15 @@ export default function Dashboard() {
   console.log("Final upcomingHolidays (max 5):", sliced);
 
   return sliced;
-})();
+};
 
+  
+  const upcomingHolidays = getUpcomingHolidays();
+  const upcomingLeaves = getUpcomingLeaves();
+
+
+
+  
 
   return (
     <div className="space-y-6">
