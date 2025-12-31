@@ -188,7 +188,6 @@ export default function Dashboard() {
                         </TableRow>
                     ) : (
                         peopleOnLeave.map(({ employee, leaveRequest }) => (
-                          console.log(leaveRequest)
                             <TableRow key={employee?.id}>
                                 <TableCell className="font-medium">{employee?.name}</TableCell>
                                 <TableCell className="text-muted-foreground text-sm">{employee?.designation}</TableCell>
