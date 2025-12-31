@@ -861,7 +861,7 @@ const handleDelete = async (id) => {
                ))}
              </SelectContent>
            </Select>
-          <label className="text-sm font-medium hidden sm:inline">Start date </label>
+          <label className="text-sm font-medium">Start date </label>
            <Input 
              type="date" 
              className="w-[150px]" 
@@ -869,7 +869,7 @@ const handleDelete = async (id) => {
              onChange={(e) => { setStartDateFilter(e.target.value); setCurrentPage(1); }}
              placeholder="From"
            />
-           <label className="text-sm font-medium hidden sm:inline">End date </label>
+           <label className="text-sm font-medium">End date </label>
            <Input 
              type="date" 
              className="w-[150px]" 
