@@ -232,24 +232,23 @@ export default function Dashboard() {
                         <p className="text-center py-4 text-muted-foreground text-sm">No upcoming holidays</p>
                     ) : (
                         <div className="space-y-3">
-                           {upcomingHolidays.map((holiday, index) => (
-                                  {upcomingHolidays.map((holiday, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
-                                    >
-                                      <div>
-                                        <p className="font-medium">{holiday.name}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                          {safeFormat(holiday.startDate, "EEEE")}
-                                        </p>
-                                      </div>
-                                  
-                                      <span className="text-sm font-medium text-primary">
-                                        {safeFormat(holiday.startDate, "MMM d, yyyy")}
-                                      </span>
-                                    </div>
-                                  ))}
+                      {upcomingHolidays.map((holiday, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                          >
+                            <div>
+                              <p className="font-medium">{holiday.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {safeFormat(holiday.startDate, "EEEE")}
+                              </p>
+                            </div>
+                        
+                            <span className="text-sm font-medium text-primary">
+                              {safeFormat(holiday.startDate, "MMM d, yyyy")}
+                            </span>
+                          </div>
+                        ))}
                         </div>
                     )}
                 </CardContent>
