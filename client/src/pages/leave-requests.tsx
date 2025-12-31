@@ -861,7 +861,7 @@ const handleDelete = async (id) => {
                ))}
              </SelectContent>
            </Select>
-
+           <label className="text-sm font-medium">Start date - new</label>
            <Input 
              type="date" 
              className="w-[150px]" 
