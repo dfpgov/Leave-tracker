@@ -217,19 +217,27 @@ export default function Dashboard() {
                     No one is on leave today
                   </TableCell>
                 </TableRow>
-              ) : (
-                peopleOnLeave.map(({ employee, leaveRequest }) => (
-                  <TableRow key={employee?.id}>
-                    <TableCell className="font-medium">{employee?.name}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{employee?.designation}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{employee?.department}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{leaveRequest?.leaveTypeName}</TableCell>
-                    <TableCell className="text-center text-sm">
-                      {safeFormat(leaveRequest?.startDate, "MMM d")} – {safeFormat(leaveRequest?.endDate, "MMM d, yyyy")}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              ) : {peopleOnLeave.map(({ employee, leaveRequest }) => {
+  console.log("Employee:", employee); // Check employee object
+  console.log("Leave Request:", leaveRequest); // Check leave request object
+
+  return (
+    <TableRow key={employee?.id}>
+      <TableCell className="font-medium">{employee?.name}</TableCell>
+      <TableCell className="text-muted-foreground text-sm">{employee?.designation}</TableCell>
+      <TableCell className="text-muted-foreground text-sm">{employee?.department}</TableCell>
+      <TableCell className="text-muted-foreground text-sm">
+        {leaveRequest ? leaveRequest.leaveTypeName : "No leave request"}
+      </TableCell>
+      <TableCell className="text-center text-sm">
+        {leaveRequest
+          ? `${safeFormat(leaveRequest.startDate, "MMM d")} – ${safeFormat(leaveRequest.endDate, "MMM d, yyyy")}`
+          : "-"}
+      </TableCell>
+    </TableRow>
+  );
+})}
+}
             </TableBody>
           </Table>
         </div>
