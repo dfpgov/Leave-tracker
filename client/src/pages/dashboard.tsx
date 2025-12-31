@@ -107,6 +107,39 @@ export default function Dashboard() {
   const peopleOnLeave = getEmployeesOnLeave();
   const upcomingHolidays = getUpcomingHolidays();
   const upcomingLeaves = getUpcomingLeaves();
+  const upcomingHolidays = (() => {
+  console.log("RAW holidays from DB:", holidays);
+
+  if (!holidays || holidays.length === 0) {
+    console.log("❌ No holidays found");
+    return [];
+  }
+
+  const today = new Date();
+  console.log("Today:", today);
+
+  const filtered = holidays.filter((holiday) => {
+    const date = new Date(holiday.startDate);
+    console.log("Checking holiday:", holiday.name, date);
+    return date >= today;
+  });
+
+  console.log("After filtering (upcoming):", filtered);
+
+  const sorted = filtered.sort(
+    (a, b) =>
+      new Date(a.startDate).getTime() -
+      new Date(b.startDate).getTime()
+  );
+
+  console.log("After sorting:", sorted);
+
+  const sliced = sorted.slice(0, 5);
+  console.log("Final upcomingHolidays (max 5):", sliced);
+
+  return sliced;
+})();
+
 
   return (
     <div className="space-y-6">
@@ -202,7 +235,7 @@ export default function Dashboard() {
                                 </TableCell>
                             
                              <TableCell className="text-muted-foreground text-sm">
-                                  {employee?.department}
+                                  {employee?.leaveTypeName}
                                 </TableCell>
                             
                                 {/* Date Range */}
