@@ -201,11 +201,8 @@ export default function Dashboard() {
                                   {employee?.department}
                                 </TableCell>
                             
-                                {/* Leave Type (STRING) */}
-                                <TableCell>
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                    {leaveRequest?.leaveTypeName}
-                                  </span>
+                             <TableCell className="text-muted-foreground text-sm">
+                                  {employee?.department}
                                 </TableCell>
                             
                                 {/* Date Range */}
@@ -235,15 +232,24 @@ export default function Dashboard() {
                         <p className="text-center py-4 text-muted-foreground text-sm">No upcoming holidays</p>
                     ) : (
                         <div className="space-y-3">
-                            {upcomingHolidays.map((holiday, index) => (
-                                <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                                    <div>
+                           {upcomingHolidays.map((holiday, index) => (
+                                  {upcomingHolidays.map((holiday, index) => (
+                                    <div
+                                      key={index}
+                                      className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                                    >
+                                      <div>
                                         <p className="font-medium">{holiday.name}</p>
-                                        <p className="text-sm text-muted-foreground">{safeFormat(holiday.date, "EEEE")}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                          {safeFormat(holiday.startDate, "EEEE")}
+                                        </p>
+                                      </div>
+                                  
+                                      <span className="text-sm font-medium text-primary">
+                                        {safeFormat(holiday.startDate, "MMM d, yyyy")}
+                                      </span>
                                     </div>
-                                    <span className="text-sm font-medium text-primary">{safeFormat(holiday.date, "MMM d, yyyy")}</span>
-                                </div>
-                            ))}
+                                  ))}
                         </div>
                     )}
                 </CardContent>
