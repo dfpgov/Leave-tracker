@@ -53,10 +53,18 @@ export default function Holidays() {
     },
   });
 
+  // Helper function to sort holidays by startDate
+  const sortHolidays = (data: Holiday[]) => {
+    return data.sort(
+      (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+    );
+  };
+
+  // Load holidays on mount
   useEffect(() => {
     async function loadData() {
       const data = await firebaseService.getHolidays();
-      setHolidays(data);
+      setHolidays(sortHolidays(data));
     }
     loadData();
   }, []);
@@ -64,10 +72,10 @@ export default function Holidays() {
   const onSubmit = async (values: z.infer<typeof holidaySchema>) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    
+
     try {
       const totalDays = calculateDays(values.startDate, values.endDate);
-      
+
       const newHoliday: Holiday = {
         id: firebaseService.generateHolidayId(),
         ...values,
@@ -76,8 +84,10 @@ export default function Holidays() {
       };
 
       await firebaseService.saveHoliday(newHoliday);
+
       const data = await firebaseService.getHolidays();
-      setHolidays(data);
+      setHolidays(sortHolidays(data));
+
       setIsDialogOpen(false);
       form.reset();
       toast({
@@ -93,7 +103,7 @@ export default function Holidays() {
     if (confirm("Delete this holiday?")) {
       await firebaseService.deleteHoliday(id);
       const data = await firebaseService.getHolidays();
-      setHolidays(data);
+      setHolidays(sortHolidays(data));
     }
   };
 
@@ -101,10 +111,10 @@ export default function Holidays() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 className="text-2xl sm:text-3xl font-bold font-heading">Holiday Management</h1>
-            <p className="text-muted-foreground mt-1">Configure official holidays</p>
+          <h1 className="text-2xl sm:text-3xl font-bold font-heading">Holiday Management</h1>
+          <p className="text-muted-foreground mt-1">Configure official holidays</p>
         </div>
-        
+
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="shadow-lg shadow-primary/20">
@@ -131,37 +141,41 @@ export default function Holidays() {
                   )}
                 />
                 <div className="grid grid-cols-2 gap-4">
-                    <FormField
+                  <FormField
                     control={form.control}
                     name="startDate"
                     render={({ field }) => (
-                        <FormItem>
+                      <FormItem>
                         <FormLabel>Start Date</FormLabel>
                         <FormControl>
-                            <Input type="date" {...field} />
+                          <Input type="date" {...field} />
                         </FormControl>
                         <FormMessage />
-                        </FormItem>
+                      </FormItem>
                     )}
-                    />
-                    <FormField
+                  />
+                  <FormField
                     control={form.control}
                     name="endDate"
                     render={({ field }) => (
-                        <FormItem>
+                      <FormItem>
                         <FormLabel>End Date</FormLabel>
                         <FormControl>
-                            <Input type="date" {...field} />
+                          <Input type="date" {...field} />
                         </FormControl>
                         <FormMessage />
-                        </FormItem>
+                      </FormItem>
                     )}
-                    />
+                  />
                 </div>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
-                  ) : "Save Holiday"}
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+                    </>
+                  ) : (
+                    "Save Holiday"
+                  )}
                 </Button>
               </form>
             </Form>
@@ -171,34 +185,34 @@ export default function Holidays() {
 
       <div className="bg-card rounded-xl border shadow-sm overflow-x-auto">
         <Table>
-            <TableHeader>
+          <TableHeader>
             <TableRow className="bg-muted/30">
-                <TableHead>Holiday Name</TableHead>
-                <TableHead>Start Date</TableHead>
-                <TableHead>End Date</TableHead>
-                <TableHead>Total Days</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Holiday Name</TableHead>
+              <TableHead>Start Date</TableHead>
+              <TableHead>End Date</TableHead>
+              <TableHead>Total Days</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
-            </TableHeader>
-            <TableBody>
+          </TableHeader>
+          <TableBody>
             {holidays.map((holiday) => (
-                <TableRow key={holiday.id}>
+              <TableRow key={holiday.id}>
                 <TableCell className="font-medium">{holiday.name}</TableCell>
                 <TableCell>{safeFormat(holiday.startDate, "PP")}</TableCell>
                 <TableCell>{safeFormat(holiday.endDate, "PP")}</TableCell>
                 <TableCell>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                        {holiday.totalDays} days
-                    </span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                    {holiday.totalDays} days
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(holiday.id)}>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(holiday.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                  </Button>
                 </TableCell>
-                </TableRow>
+              </TableRow>
             ))}
-            </TableBody>
+          </TableBody>
         </Table>
       </div>
     </div>
