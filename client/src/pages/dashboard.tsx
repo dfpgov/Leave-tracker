@@ -189,14 +189,31 @@ export default function Dashboard() {
                     ) : (
                         peopleOnLeave.map(({ employee, leaveRequest }) => (
                             <TableRow key={employee?.id}>
-                                <TableCell className="font-medium">{employee?.name}</TableCell>
-                                <TableCell className="text-muted-foreground text-sm">{employee?.designation}</TableCell>
-                                <TableCell className="text-muted-foreground text-sm">{employee?.department}</TableCell>
-                                <TableCell className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{leaveRequest?.leaveTypeName}</TableCell>
-                                <TableCell className="text-center text-sm">
-                                    {safeFormat(leaveRequest?.leaveTypeName, "MMM d")} - {safeFormat(leaveRequest?.endDate, "MMM d, yyyy")}
+                                <TableCell className="font-medium">
+                                  {employee?.name}
                                 </TableCell>
-                            </TableRow>
+                            
+                                <TableCell className="text-muted-foreground text-sm">
+                                  {employee?.designation}
+                                </TableCell>
+                            
+                                <TableCell className="text-muted-foreground text-sm">
+                                  {employee?.department}
+                                </TableCell>
+                            
+                                {/* Leave Type (STRING) */}
+                                <TableCell>
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                    {leaveRequest?.leaveTypeName}
+                                  </span>
+                                </TableCell>
+                            
+                                {/* Date Range */}
+                                <TableCell className="text-center text-sm">
+                                  {safeFormat(leaveRequest?.startDate, "MMM d")} –{" "}
+                                  {safeFormat(leaveRequest?.endDate, "MMM d, yyyy")}
+                                </TableCell>
+                              </TableRow>
                         ))
                     )}
                 </TableBody>
