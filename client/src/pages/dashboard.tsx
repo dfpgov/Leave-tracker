@@ -99,7 +99,7 @@ export default function Dashboard() {
     }
 
     const filtered = holidays.filter(h => {
-      const holidayDate = parseDate(h.startDate || h.date); // handle both field names
+      const holidayDate = parseDate(h.startDate || h.date);
       holidayDate.setHours(0, 0, 0, 0);
       console.log("Checking holiday:", h.name, holidayDate);
       return holidayDate >= today;
@@ -222,3 +222,77 @@ export default function Dashboard() {
                   <TableRow key={employee?.id}>
                     <TableCell className="font-medium">{employee?.name}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{employee?.designation}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{employee?.department}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{leaveRequest?.leaveTypeName}</TableCell>
+                    <TableCell className="text-center text-sm">
+                      {safeFormat(leaveRequest?.startDate, "MMM d")} – {safeFormat(leaveRequest?.endDate, "MMM d, yyyy")}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      {/* Upcoming Holidays & Leaves */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Upcoming Holidays */}
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Upcoming Holidays</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">Next scheduled holidays</p>
+            </div>
+            <Calendar className="h-5 w-5 text-primary" />
+          </CardHeader>
+          <CardContent>
+            {upcomingHolidays.length === 0 ? (
+              <p className="text-center py-4 text-muted-foreground text-sm">No upcoming holidays</p>
+            ) : (
+              <div className="space-y-3">
+                {upcomingHolidays.map((holiday, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <div>
+                      <p className="font-medium">{holiday.name}</p>
+                      <p className="text-sm text-muted-foreground">{safeFormat(holiday.startDate || holiday.date, "EEEE")}</p>
+                    </div>
+                    <span className="text-sm font-medium text-primary">{safeFormat(holiday.startDate || holiday.date, "MMM d, yyyy")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Upcoming Leaves */}
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Upcoming Leaves</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">Employees on leave next 7 days</p>
+            </div>
+            <CalendarDays className="h-5 w-5 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            {upcomingLeaves.length === 0 ? (
+              <p className="text-center py-4 text-muted-foreground text-sm">No upcoming leaves</p>
+            ) : (
+              <div className="space-y-3">
+                {upcomingLeaves.map((leave, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <div>
+                      <p className="font-medium">{leave.employeeName}</p>
+                      <p className="text-sm text-muted-foreground">{leave.leaveTypeName} - {leave.approvedDays} days</p>
+                    </div>
+                    <span className="text-sm font-medium text-orange-600">{safeFormat(leave.startDate, "MMM d")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
