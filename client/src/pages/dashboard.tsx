@@ -1,7 +1,19 @@
 import { useState, useEffect } from "react";
 import { firebaseService } from "@/lib/firebaseStorage";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { isAfter, isBefore, addDays } from "date-fns";
 import { Users, UserCheck, Clock, Calendar, CalendarDays } from "lucide-react";
@@ -15,19 +27,18 @@ export default function Dashboard() {
   const [stats, setStats] = useState({
     totalEmployees: 0,
     employeesOnLeave: 0,
-    pendingLeaves: 0
+    pendingLeaves: 0,
   });
   const [employees, setEmployees] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [holidays, setHolidays] = useState<any[]>([]);
 
-  // Load data on mount
   useEffect(() => {
     async function loadData() {
       const [allEmployees, allRequests, allHolidays] = await Promise.all([
         firebaseService.getEmployees(),
         firebaseService.getLeaveRequests(),
-        firebaseService.getHolidays()
+        firebaseService.getHolidays(),
       ]);
 
       setEmployees(allEmployees);
@@ -37,59 +48,55 @@ export default function Dashboard() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const activeLeaves = allRequests.filter(r => {
+      const activeLeaves = allRequests.filter((r) => {
         const start = parseDate(r.startDate);
         const end = parseDate(r.endDate);
         start.setHours(0, 0, 0, 0);
         end.setHours(0, 0, 0, 0);
-        return today >= start && today <= end && r.status === 'Approved';
+        return today >= start && today <= end && r.status === "Approved";
       });
 
-      const pendingCount = allRequests.filter(r => r.status === 'Pending').length;
+      const pendingCount = allRequests.filter((r) => r.status === "Pending").length;
 
       setStats({
         totalEmployees: allEmployees.length,
         employeesOnLeave: activeLeaves.length,
-        pendingLeaves: pendingCount
+        pendingLeaves: pendingCount,
       });
     }
+
     loadData();
   }, []);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Employees on leave today
+  // --- Get employees on leave today ---
   const getEmployeesOnLeave = () => {
-    const onLeave = new Set<string>();
-    requests.forEach(request => {
-      if (request.status === 'Approved') {
-        const startDate = parseDate(request.startDate);
-        const endDate = parseDate(request.endDate);
-        startDate.setHours(0, 0, 0, 0);
-        endDate.setHours(0, 0, 0, 0);
-
-        if (today >= startDate && today <= endDate) {
-          onLeave.add(request.employeeId);
-        }
-      }
+    const approvedLeavesToday = requests.filter((r) => {
+      if (r.status !== "Approved") return false;
+      const start = new Date(r.startDate);
+      const end = new Date(r.endDate);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      return today >= start && today <= end;
     });
 
-    return Array.from(onLeave)
-      .map(empId => {
-        const emp = employees.find(e => e.id === empId);
-        const leaveRequest = requests.find(
-          r => r.employeeId === empId &&
-               r.status === 'Approved' &&
-               parseDate(r.startDate) <= today &&
-               parseDate(r.endDate) >= today
-        );
-        return { employee: emp, leaveRequest };
-      })
-      .filter(item => item.employee);
+    const result = approvedLeavesToday.map((leave) => {
+      const emp = employees.find((e) => e.id === leave.employeeId);
+      if (!emp) return null;
+      return { employee: emp, leaveRequest: leave };
+    });
+
+    const filteredResult = result.filter(Boolean) as { employee: any; leaveRequest: any }[];
+
+    console.log("People on leave today:", filteredResult);
+    return filteredResult;
   };
 
-  // Upcoming holidays (next 5)
+  const peopleOnLeave = getEmployeesOnLeave();
+
+  // --- Upcoming Holidays ---
   const getUpcomingHolidays = () => {
     console.log("RAW holidays from DB:", holidays);
 
@@ -98,15 +105,16 @@ export default function Dashboard() {
       return [];
     }
 
-    const filtered = holidays.filter(h => {
-      const holidayDate = parseDate(h.startDate || h.date);
-      holidayDate.setHours(0, 0, 0, 0);
-      console.log("Checking holiday:", h.name, holidayDate);
-      return holidayDate >= today;
+    const filtered = holidays.filter((holiday) => {
+      const date = new Date(holiday.startDate || holiday.date); // fallback
+      date.setHours(0, 0, 0, 0);
+      return date >= today;
     });
 
     const sorted = filtered.sort(
-      (a, b) => parseDate(a.startDate || a.date).getTime() - parseDate(b.startDate || b.date).getTime()
+      (a, b) =>
+        new Date(a.startDate || a.date).getTime() -
+        new Date(b.startDate || b.date).getTime()
     );
 
     const sliced = sorted.slice(0, 5);
@@ -114,23 +122,22 @@ export default function Dashboard() {
     return sliced;
   };
 
-  // Upcoming leaves (next 7 days)
+  const upcomingHolidays = getUpcomingHolidays();
+
+  // --- Upcoming Leaves (next 7 days) ---
   const getUpcomingLeaves = () => {
     const nextWeek = addDays(today, 7);
-
     return requests
-      .filter(r => {
-        if (r.status !== 'Approved') return false;
-        const startDate = parseDate(r.startDate);
+      .filter((r) => {
+        if (r.status !== "Approved") return false;
+        const startDate = new Date(r.startDate);
         startDate.setHours(0, 0, 0, 0);
-        return startDate > today && startDate <= nextWeek;
+        return isAfter(startDate, today) && isBefore(startDate, nextWeek);
       })
-      .sort((a, b) => parseDate(a.startDate).getTime() - parseDate(b.startDate).getTime())
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
       .slice(0, 5);
   };
 
-  const peopleOnLeave = getEmployeesOnLeave();
-  const upcomingHolidays = getUpcomingHolidays();
   const upcomingLeaves = getUpcomingLeaves();
 
   return (
@@ -144,7 +151,7 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Dashboard Title */}
+      {/* Dashboard Heading */}
       <div>
         <h1 className="text-3xl font-bold font-heading">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Overview of leave records and employee status</p>
@@ -217,27 +224,26 @@ export default function Dashboard() {
                     No one is on leave today
                   </TableCell>
                 </TableRow>
-              ) : {peopleOnLeave.map(({ employee, leaveRequest }) => {
-  console.log("Employee:", employee); // Check employee object
-  console.log("Leave Request:", leaveRequest); // Check leave request object
-
-  return (
-    <TableRow key={employee?.id}>
-      <TableCell className="font-medium">{employee?.name}</TableCell>
-      <TableCell className="text-muted-foreground text-sm">{employee?.designation}</TableCell>
-      <TableCell className="text-muted-foreground text-sm">{employee?.department}</TableCell>
-      <TableCell className="text-muted-foreground text-sm">
-        {leaveRequest ? leaveRequest.leaveTypeName : "No leave request"}
-      </TableCell>
-      <TableCell className="text-center text-sm">
-        {leaveRequest
-          ? `${safeFormat(leaveRequest.startDate, "MMM d")} – ${safeFormat(leaveRequest.endDate, "MMM d, yyyy")}`
-          : "-"}
-      </TableCell>
-    </TableRow>
-  );
-})}
-}
+              ) : (
+                peopleOnLeave.map(({ employee, leaveRequest }) => {
+                  console.log("Employee:", employee, "LeaveRequest:", leaveRequest);
+                  return (
+                    <TableRow key={employee.id}>
+                      <TableCell className="font-medium">{employee.name}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{employee.designation}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{employee.department}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {leaveRequest?.leaveTypeName || "No leave type"}
+                      </TableCell>
+                      <TableCell className="text-center text-sm">
+                        {leaveRequest
+                          ? `${safeFormat(leaveRequest.startDate, "MMM d")} – ${safeFormat(leaveRequest.endDate, "MMM d, yyyy")}`
+                          : "-"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </div>
@@ -245,7 +251,6 @@ export default function Dashboard() {
 
       {/* Upcoming Holidays & Leaves */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Upcoming Holidays */}
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -253,54 +258,4 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground mt-1">Next scheduled holidays</p>
             </div>
             <Calendar className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            {upcomingHolidays.length === 0 ? (
-              <p className="text-center py-4 text-muted-foreground text-sm">No upcoming holidays</p>
-            ) : (
-              <div className="space-y-3">
-                {upcomingHolidays.map((holiday, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                    <div>
-                      <p className="font-medium">{holiday.name}</p>
-                      <p className="text-sm text-muted-foreground">{safeFormat(holiday.startDate || holiday.date, "EEEE")}</p>
-                    </div>
-                    <span className="text-sm font-medium text-primary">{safeFormat(holiday.startDate || holiday.date, "MMM d, yyyy")}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Upcoming Leaves */}
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Upcoming Leaves</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">Employees on leave next 7 days</p>
-            </div>
-            <CalendarDays className="h-5 w-5 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            {upcomingLeaves.length === 0 ? (
-              <p className="text-center py-4 text-muted-foreground text-sm">No upcoming leaves</p>
-            ) : (
-              <div className="space-y-3">
-                {upcomingLeaves.map((leave, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                    <div>
-                      <p className="font-medium">{leave.employeeName}</p>
-                      <p className="text-sm text-muted-foreground">{leave.leaveTypeName} - {leave.approvedDays} days</p>
-                    </div>
-                    <span className="text-sm font-medium text-orange-600">{safeFormat(leave.startDate, "MMM d")}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
+          </Ca
