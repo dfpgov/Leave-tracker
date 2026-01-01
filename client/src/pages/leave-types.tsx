@@ -41,6 +41,8 @@ export default function LeaveTypes() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
 
   const form = useForm<z.infer<typeof leaveTypeSchema>>({
     resolver: zodResolver(leaveTypeSchema),
@@ -57,6 +59,10 @@ export default function LeaveTypes() {
     }
     loadData();
   }, []);
+  useEffect(() => {
+  setCurrentUser(firebaseService.getCurrentUser());
+}, []);
+
 
   const onSubmit = async (values: z.infer<typeof leaveTypeSchema>) => {
     if (isSubmitting) return;
@@ -178,11 +184,16 @@ export default function LeaveTypes() {
                     )}
                 </TableCell>
                 <TableCell className="text-right">
-                    {type.name !== "Casual Leave" && (
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(type.id, type.name)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
+                    {currentUser?.role === "Admin" && type.name !== "Casual Leave" && (
+  <Button
+    variant="ghost"
+    size="icon"
+    onClick={() => handleDelete(type.id, type.name, type)}
+  >
+    <Trash2 className="h-4 w-4 text-destructive" />
+  </Button>
+)}
+
                 </TableCell>
                 </TableRow>
             ))}
