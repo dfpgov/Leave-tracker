@@ -33,10 +33,10 @@ export async function initializeFirebase(): Promise<void> {
   }
 }
 
-// Direct exports (can use old `import { db } from ...`)
+// Direct exports (for your old imports)
 export { app, auth, db, firebaseStorage };
 
-// Optional getters for safety (new items can use these)
+// Optional getters for new code
 export function getFirebaseDb(): Firestore {
   if (!initialized) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
   return db;
