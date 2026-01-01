@@ -369,14 +369,13 @@ export default function Employees() {
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(employee)}>
                             <Pencil className="h-4 w-4 text-primary" />
                             </Button>
-                           {/* Delete button only visible for Admin */}
+
+                       {/* Delete button only visible for Admin */}
     {currentUser?.role === "Admin" && (
       <Button variant="ghost" size="icon" onClick={() => handleDelete(employee.id)}>
         <Trash2 className="h-4 w-4 text-destructive" />
       </Button>
     )}
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
                         </div>
                     </TableCell>
                     </TableRow>
