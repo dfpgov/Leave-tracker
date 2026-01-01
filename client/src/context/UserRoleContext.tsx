@@ -1,25 +1,34 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { getCurrentUserRole } from "../lib/firebaseService";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { login as firebaseLogin, User } from "@/lib/firebaseService";
 
-type UserRoleContextType = { role: "admin" | "coadmin" | null };
-const UserRoleContext = createContext<UserRoleContextType>({ role: null });
+interface UserRoleContextType {
+  user: User | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+}
 
-export const UserRoleProvider = ({ children }: { children: React.ReactNode }) => {
-  const [role, setRole] = useState<"admin" | "coadmin" | null>(null);
+const UserRoleContext = createContext<UserRoleContextType | undefined>(undefined);
 
-  useEffect(() => {
-    async function loadRole() {
-      try {
-        const r = await getCurrentUserRole();
-        setRole(r);
-      } catch {
-        setRole(null);
-      }
-    }
-    loadRole();
-  }, []);
+export const UserRoleProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
 
-  return <UserRoleContext.Provider value={{ role }}>{children}</UserRoleContext.Provider>;
+  const login = async (email: string, password: string) => {
+    const u = await firebaseLogin(email, password);
+    if (u) setUser(u);
+    else throw new Error("Invalid credentials");
+  };
+
+  const logout = () => setUser(null);
+
+  return (
+    <UserRoleContext.Provider value={{ user, login, logout }}>
+      {children}
+    </UserRoleContext.Provider>
+  );
 };
 
-export const useUserRole = () => useContext(UserRoleContext);
+export const useUserRole = () => {
+  const context = useContext(UserRoleContext);
+  if (!context) throw new Error("useUserRole must be used within UserRoleProvider");
+  return context;
+};
