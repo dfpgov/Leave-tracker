@@ -3,16 +3,18 @@ import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-let db: Firestore | null = null;
-let storage: FirebaseStorage | null = null;
+// Firebase instances
+let app: FirebaseApp;
+let auth: Auth;
+let db: Firestore;
+let firebaseStorage: FirebaseStorage;
+let initialized = false;
 
 /**
- * Initialize Firebase (call once in your app)
+ * Initialize Firebase
  */
 export async function initializeFirebase(): Promise<void> {
-  if (app) return; // Already initialized
+  if (initialized) return;
 
   try {
     const response = await fetch("/api/firebase-config");
@@ -21,8 +23,9 @@ export async function initializeFirebase(): Promise<void> {
     app = initializeApp(config);
     auth = getAuth(app);
     db = getFirestore(app);
-    storage = getStorage(app);
+    firebaseStorage = getStorage(app);
 
+    initialized = true;
     console.log("Firebase initialized ✅");
   } catch (error) {
     console.error("Failed to initialize Firebase:", error);
@@ -30,25 +33,23 @@ export async function initializeFirebase(): Promise<void> {
   }
 }
 
-/** Get Firebase Auth instance */
-export function getFirebaseAuth(): Auth {
-  if (!auth) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
-  return auth;
-}
+// Direct exports (can use old `import { db } from ...`)
+export { app, auth, db, firebaseStorage };
 
-/** Get Firestore instance */
+// Optional getters for safety (new items can use these)
 export function getFirebaseDb(): Firestore {
-  if (!db) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
+  if (!initialized) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
   return db;
 }
-
-/** Get Firebase Storage instance */
+export function getFirebaseAuth(): Auth {
+  if (!initialized) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
+  return auth;
+}
 export function getFirebaseStorage(): FirebaseStorage {
-  if (!storage) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
-  return storage;
+  if (!initialized) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
+  return firebaseStorage;
 }
 
-/** Check if Firebase is initialized */
 export function isFirebaseInitialized(): boolean {
-  return !!app;
+  return initialized;
 }
