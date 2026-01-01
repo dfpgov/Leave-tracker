@@ -38,7 +38,6 @@ import * as z from "zod";
 import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { safeFormat } from "@/lib/dateUtils";
 
 const employeeSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -55,6 +54,7 @@ export default function Employees() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const itemsPerPage = 50;
   const { toast } = useToast();
 
@@ -72,32 +72,33 @@ export default function Employees() {
     async function loadData() {
       const data = await firebaseService.getEmployees();
       setEmployees(data.sort((a, b) => a.name.localeCompare(b.name)));
+
+      const role = await firebaseService.getCurrentUserRole(); // fetch user role (admin, coadmin, etc.)
+      setCurrentUserRole(role);
     }
     loadData();
   }, []);
 
-  const filteredEmployees = employees.filter((e) =>
-    e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.designation.toLowerCase().includes(searchTerm.toLowerCase())
-  ).sort((a, b) => a.name.localeCompare(b.name));
+  const filteredEmployees = employees
+    .filter(
+      (e) =>
+        e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        e.designation.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
 
-  const handlePreviousPage = () => {
-    setCurrentPage(prev => Math.max(prev - 1, 1));
-  };
-
-  const handleNextPage = () => {
-    setCurrentPage(prev => Math.min(prev + 1, totalPages));
-  };
+  const handlePreviousPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
+  const handleNextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
 
   const onSubmit = async (values: z.infer<typeof employeeSchema>) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    
+
     try {
       const newEmployee: Employee = {
         id: editingEmployee ? editingEmployee.id : firebaseService.generateEmployeeId(),
@@ -138,7 +139,7 @@ export default function Employees() {
       await firebaseService.deleteEmployee(id);
       const data = await firebaseService.getEmployees();
       setEmployees(data.sort((a, b) => a.name.localeCompare(b.name)));
-      setSelectedIds(prev => {
+      setSelectedIds((prev) => {
         const newSet = new Set(prev);
         newSet.delete(id);
         return newSet;
@@ -171,18 +172,14 @@ export default function Employees() {
     if (selectedIds.size === paginatedEmployees.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(paginatedEmployees.map(e => e.id)));
+      setSelectedIds(new Set(paginatedEmployees.map((e) => e.id)));
     }
   };
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
+      newSet.has(id) ? newSet.delete(id) : newSet.add(id);
       return newSet;
     });
   };
@@ -190,22 +187,24 @@ export default function Employees() {
   const openAddDialog = () => {
     setEditingEmployee(null);
     form.reset({
-        name: "",
-        designation: "",
-        department: "",
-        gender: "Male",
+      name: "",
+      designation: "",
+      department: "",
+      gender: "Male",
     });
     setIsDialogOpen(true);
-  }
+  };
+
+  const isAdmin = currentUserRole === "admin";
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 className="text-3xl font-bold font-heading">Employee Management</h1>
-            <p className="text-muted-foreground mt-1">Manage your workforce details</p>
+          <h1 className="text-3xl font-bold font-heading">Employee Management</h1>
+          <p className="text-muted-foreground mt-1">Manage your workforce details</p>
         </div>
-        
+
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openAddDialog} className="shadow-lg shadow-primary/20">
@@ -232,32 +231,32 @@ export default function Employees() {
                   )}
                 />
                 <div className="grid grid-cols-2 gap-4">
-                    <FormField
+                  <FormField
                     control={form.control}
                     name="designation"
                     render={({ field }) => (
-                        <FormItem>
+                      <FormItem>
                         <FormLabel>Designation</FormLabel>
                         <FormControl>
-                            <Input placeholder="Deputy Director" {...field} />
+                          <Input placeholder="Deputy Director" {...field} />
                         </FormControl>
                         <FormMessage />
-                        </FormItem>
+                      </FormItem>
                     )}
-                    />
+                  />
                   <FormField
                     control={form.control}
                     name="department"
                     render={({ field }) => (
-                        <FormItem>
+                      <FormItem>
                         <FormLabel>Section</FormLabel>
                         <FormControl>
-                            <Input placeholder="Advertisement & Audit" {...field} />
+                          <Input placeholder="Advertisement & Audit" {...field} />
                         </FormControl>
                         <FormMessage />
-                        </FormItem>
-                    )} 
-                    />
+                      </FormItem>
+                    )}
+                  />
                 </div>
                 <FormField
                   control={form.control}
@@ -283,9 +282,13 @@ export default function Employees() {
                 />
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+                    </>
+                  ) : editingEmployee ? (
+                    "Update Employee"
                   ) : (
-                    editingEmployee ? "Update Employee" : "Save Employee"
+                    "Save Employee"
                   )}
                 </Button>
               </form>
@@ -296,33 +299,34 @@ export default function Employees() {
 
       <div className="bg-card rounded-xl border shadow-sm">
         <div className="p-4 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-           <div className="relative flex-1 w-full sm:max-w-sm">
-             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-             <Input 
-                placeholder="Search employees..." 
-                className="pl-9 bg-muted/30" 
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-             />
-           </div>
-           <div className="flex items-center gap-4">
-             {selectedIds.size > 0 && (
-               <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-                 <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedIds.size})
-               </Button>
-             )}
-             <div className="text-sm text-muted-foreground whitespace-nowrap">
-               Total: {employees.length}
-             </div>
-           </div>
+          <div className="relative flex-1 w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search employees..."
+              className="pl-9 bg-muted/30"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            {isAdmin && selectedIds.size > 0 && (
+              <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedIds.size})
+              </Button>
+            )}
+            <div className="text-sm text-muted-foreground whitespace-nowrap">
+              Total: {employees.length}
+            </div>
+          </div>
         </div>
+
         <div className="overflow-x-auto">
-        <Table>
+          <Table>
             <TableHeader>
-            <TableRow className="bg-muted/30 hover:bg-muted/30">
+              <TableRow className="bg-muted/30 hover:bg-muted/30">
                 <TableHead className="w-12">
                   <Checkbox
                     checked={paginatedEmployees.length > 0 && selectedIds.size === paginatedEmployees.length}
@@ -333,19 +337,19 @@ export default function Employees() {
                 <TableHead>Designation</TableHead>
                 <TableHead>Section</TableHead>
                 <TableHead>Gender</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
+                {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+              </TableRow>
             </TableHeader>
             <TableBody>
-            {paginatedEmployees.length === 0 ? (
+              {paginatedEmployees.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                        {filteredEmployees.length === 0 ? "No employees found." : "No data on this page."}
-                    </TableCell>
+                  <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-12 text-muted-foreground">
+                    {filteredEmployees.length === 0 ? "No employees found." : "No data on this page."}
+                  </TableCell>
                 </TableRow>
-            ) : (
+              ) : (
                 paginatedEmployees.map((employee) => (
-                    <TableRow key={employee.id} className="group">
+                  <TableRow key={employee.id} className="group">
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.has(employee.id)}
@@ -356,22 +360,24 @@ export default function Employees() {
                     <TableCell>{employee.designation}</TableCell>
                     <TableCell>{employee.department}</TableCell>
                     <TableCell>{employee.gender}</TableCell>
-                    
-                    <TableCell className="text-right">
+
+                    {isAdmin && (
+                      <TableCell className="text-right">
                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" onClick={() => handleEdit(employee)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(employee)}>
                             <Pencil className="h-4 w-4 text-primary" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(employee.id)}>
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(employee.id)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                          </Button>
                         </div>
-                    </TableCell>
-                    </TableRow>
+                      </TableCell>
+                    )}
+                  </TableRow>
                 ))
-            )}
+              )}
             </TableBody>
-        </Table>
+          </Table>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t">
