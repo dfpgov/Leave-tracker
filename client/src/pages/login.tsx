@@ -29,14 +29,17 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      // Simplified login: check username & plain-text password
+      console.log("Fetching users from Firestore...");
       const users: User[] = await firebaseService.getUsers();
+      console.log("Users fetched:", users);
+
       const user = users.find(
         (u) => u.name.trim() === username.trim() && u.password === password.trim()
       );
 
+      console.log("User found:", user);
+
       if (user) {
-        // Set current user in localStorage
         firebaseService.setCurrentUser(user);
 
         toast({
@@ -44,22 +47,29 @@ export default function Login() {
           description: `Welcome, ${user.name}! (${user.role})`,
         });
 
-        // Redirect to dashboard
         setTimeout(() => {
           window.location.replace("/");
         }, 200);
       } else {
         toast({
           title: "Login Failed",
-          description: "Invalid username or password. Please try again.",
+          description: "Invalid username or password. Check console for details.",
           variant: "destructive",
         });
+
+        console.log("Login failed:");
+        console.log("Username entered:", username);
+        console.log("Password entered:", password);
+        console.log(
+          "Matching users by name:",
+          users.filter((u) => u.name.trim() === username.trim())
+        );
       }
     } catch (error) {
       console.error("Login error:", error);
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
+        description: "Something went wrong. Check console for details.",
         variant: "destructive",
       });
     } finally {
@@ -70,7 +80,6 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
       <Card className="w-full max-w-md shadow-2xl border-0 overflow-hidden">
-        {/* Header */}
         <div className="bg-[#161F31] text-white p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
@@ -82,9 +91,7 @@ export default function Login() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-wide">Leave Tracker</h1>
-              <p className="text-sm text-slate-300">
-                Department of Films & Publications
-              </p>
+              <p className="text-sm text-slate-300">Department of Films & Publications</p>
             </div>
           </div>
         </div>
@@ -126,11 +133,7 @@ export default function Login() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   tabIndex={-1}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
