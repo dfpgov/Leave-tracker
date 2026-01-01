@@ -57,6 +57,8 @@ export default function Employees() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const itemsPerPage = 50;
   const { toast } = useToast();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
 
   const form = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
@@ -75,6 +77,11 @@ export default function Employees() {
     }
     loadData();
   }, []);
+
+  useEffect(() => {
+  setCurrentUser(firebaseService.getCurrentUser());
+}, []);
+
 
   const filteredEmployees = employees.filter((e) =>
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -362,7 +369,12 @@ export default function Employees() {
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(employee)}>
                             <Pencil className="h-4 w-4 text-primary" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(employee.id)}>
+                           {/* Delete button only visible for Admin */}
+    {currentUser?.role === "Admin" && (
+      <Button variant="ghost" size="icon" onClick={() => handleDelete(employee.id)}>
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    )}
                             <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                         </div>
