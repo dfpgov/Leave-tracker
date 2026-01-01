@@ -3,14 +3,16 @@ import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
-let firebaseStorage: FirebaseStorage;
-let initialized = false;
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
 
+/**
+ * Initialize Firebase (call once in your app)
+ */
 export async function initializeFirebase(): Promise<void> {
-  if (initialized) return;
+  if (app) return; // Already initialized
 
   try {
     const response = await fetch("/api/firebase-config");
@@ -19,31 +21,34 @@ export async function initializeFirebase(): Promise<void> {
     app = initializeApp(config);
     auth = getAuth(app);
     db = getFirestore(app);
-    firebaseStorage = getStorage(app);
-    initialized = true;
+    storage = getStorage(app);
+
+    console.log("Firebase initialized ✅");
   } catch (error) {
     console.error("Failed to initialize Firebase:", error);
     throw error;
   }
 }
 
+/** Get Firebase Auth instance */
 export function getFirebaseAuth(): Auth {
-  if (!initialized) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
+  if (!auth) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
   return auth;
 }
 
+/** Get Firestore instance */
 export function getFirebaseDb(): Firestore {
-  if (!initialized) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
+  if (!db) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
   return db;
 }
 
+/** Get Firebase Storage instance */
 export function getFirebaseStorage(): FirebaseStorage {
-  if (!initialized) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
-  return firebaseStorage;
+  if (!storage) throw new Error("Firebase not initialized. Call initializeFirebase() first.");
+  return storage;
 }
 
+/** Check if Firebase is initialized */
 export function isFirebaseInitialized(): boolean {
-  return initialized;
+  return !!app;
 }
-
-export { app, auth, db, firebaseStorage };
