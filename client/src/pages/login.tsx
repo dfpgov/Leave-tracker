@@ -1,9 +1,12 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { firebaseService, User } from "@/lib/firebaseStorage";
+import { firebaseService } from "@/lib/firebaseStorage";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 
@@ -16,61 +19,40 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!username.trim() || !password.trim()) {
       toast({
         title: "Error",
         description: "Please enter both username and password.",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
 
     setIsLoading(true);
-
     try {
-      console.log("Fetching users from Firestore...");
-      const users: User[] = await firebaseService.getUsers();
-      console.log("Users fetched:", users);
-
-      const user = users.find(
-        (u) => u.name.trim() === username.trim() && u.password === password.trim()
-      );
-
-      console.log("User found:", user);
-
+      const user = await firebaseService.login(username.trim(), password);
       if (user) {
-        firebaseService.setCurrentUser(user);
-
         toast({
           title: "Login Successful",
           description: `Welcome, ${user.name}! (${user.role})`,
         });
-
         setTimeout(() => {
           window.location.replace("/");
-        }, 200);
+        }, 100);
       } else {
         toast({
           title: "Login Failed",
-          description: "Invalid username or password. Check console for details.",
-          variant: "destructive",
+          description: "Invalid username or password. Please try again.",
+          variant: "destructive"
         });
-
-        console.log("Login failed:");
-        console.log("Username entered:", username);
-        console.log("Password entered:", password);
-        console.log(
-          "Matching users by name:",
-          users.filter((u) => u.name.trim() === username.trim())
-        );
       }
     } catch (error) {
       console.error("Login error:", error);
       toast({
         title: "Error",
-        description: "Something went wrong. Check console for details.",
-        variant: "destructive",
+        description: "Failed to login. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setIsLoading(false);
@@ -80,14 +62,12 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
       <Card className="w-full max-w-md shadow-2xl border-0 overflow-hidden">
+        {/* Header matching the image */}
         <div className="bg-[#161F31] text-white p-6">
           <div className="flex items-center gap-4">
+            {/* Logo - circular with government seal style */}
             <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-              <img
-                src="https://raw.githubusercontent.com/dfpgov/Leave-tracker/main/client/public/images_(13)_1766356753117.png"
-                alt="Logo"
-                className="w-full h-full object-cover"
-              />
+              <img src="https://raw.githubusercontent.com/dfpgov/Leave-tracker/main/client/public/images_(13)_1766356753117.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-wide">Leave Tracker</h1>
@@ -110,9 +90,10 @@ export default function Login() {
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
                 className="h-12"
+                data-testid="input-username"
               />
             </div>
-
+            
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm font-medium">
                 Password
@@ -126,6 +107,7 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
                   className="h-12 pr-10"
+                  data-testid="input-password"
                 />
                 <button
                   type="button"
@@ -138,10 +120,11 @@ export default function Login() {
               </div>
             </div>
 
-            <Button
+            <Button 
               type="submit"
               className="w-full h-12 text-lg bg-[#161F31] hover:bg-[#2d4a6f]"
               disabled={isLoading}
+              data-testid="button-login"
             >
               {isLoading ? (
                 <>
@@ -153,6 +136,7 @@ export default function Login() {
               )}
             </Button>
           </form>
+
         </CardContent>
       </Card>
     </div>
