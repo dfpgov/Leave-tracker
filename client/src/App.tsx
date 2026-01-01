@@ -82,4 +82,16 @@ function App() {
   if (!isInitialized) return <div className="flex items-center justify-center min-h-screen">Connecting...</div>;
   if (initError) return <div className="flex items-center justify-center min-h-screen">{initError}</div>;
 
-  re
+  return (
+    <UserRoleProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Router isAuthenticated={isAuthenticated} />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </UserRoleProvider>
+  );
+}
+
+export default App;
