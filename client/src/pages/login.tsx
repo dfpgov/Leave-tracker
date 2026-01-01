@@ -3,33 +3,43 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { firebaseService, User } from "@/lib/firebaseStorage";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, EyeOff } from "lucide-react";
-import { useUserRole } from "@/context/UserRoleContext";
 
-export default function LoginPage() {
+export default function Login() {
   const { toast } = useToast();
-  const { login } = useUserRole();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      toast({ title: "Error", description: "Enter email and password", variant: "destructive" });
+    if (!username || !password) {
+      toast({
+        title: "Error",
+        description: "Please enter both username and password",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsLoading(true);
     try {
-      await login(email.trim(), password);
-      toast({ title: "Login Successful" });
-      window.location.replace("/"); // redirect
-    } catch (err: any) {
+      // Fetch user from your users collection
+      const user: User | null = await firebaseService.getUserByUsername(username.trim());
+
+      if (!user) {
+        toast({ title: "Login Failed", description: "User not found", variant: "destructive" });
+      } else if (user.password !== password) {
+        toast({ title: "Login Failed", description: "Invalid password", variant: "destructive" });
+      } else {
+        toast({ title: "Login Successful", description: `Welcome, ${user.name} (${user.role})!` });
+        localStorage.setItem("currentUser", JSON.stringify(user));
+        window.location.replace("/"); // redirect to dashboard
+      }
+    } catch (err) {
       console.error(err);
-      toast({ title: "Login Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: "Something went wrong", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -40,30 +50,44 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-2xl border-0 overflow-hidden">
         <div className="bg-[#161F31] text-white p-6 flex items-center gap-4">
           <div className="w-12 h-12 rounded-full overflow-hidden">
-            <img src="/images/logo.png" alt="Logo" className="w-full h-full object-cover" />
+            <img
+              src="https://raw.githubusercontent.com/dfpgov/Leave-tracker/main/client/public/images_(13)_1766356753117.png"
+              alt="Logo"
+              className="w-full h-full object-cover"
+            />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-wide">Leave Tracker</h1>
             <p className="text-sm text-slate-300">Department of Films & Publications</p>
           </div>
         </div>
-        <CardContent className="p-6 space-y-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
+
+        <CardContent className="p-6">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isLoading}
+              />
             </div>
+
             <div className="space-y-2">
-              <Label>Password</Label>
-              <div className="relative">
-                <Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="pr-10" />
-                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2" onClick={() => setShowPassword(!showPassword)}>
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+              />
             </div>
-            <Button type="submit" className="w-full h-12" disabled={isLoading}>
-              {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Login"}
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Logging in..." : "Login"}
             </Button>
           </form>
         </CardContent>
