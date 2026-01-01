@@ -31,7 +31,9 @@ import * as z from "zod";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { safeFormat } from "@/lib/dateUtils";
+import { useUserRole } from "@/context/UserRoleContext"; // ✅ Import user context
 
+// Validation schema
 const holidaySchema = z.object({
   name: z.string().min(1, "Name is required"),
   startDate: z.string().min(1, "Start date is required"),
@@ -43,6 +45,7 @@ export default function Holidays() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { user } = useUserRole(); // ✅ Get current user
 
   const form = useForm<z.infer<typeof holidaySchema>>({
     resolver: zodResolver(holidaySchema),
@@ -53,12 +56,9 @@ export default function Holidays() {
     },
   });
 
-  // Helper function to sort holidays by startDate
-  const sortHolidays = (data: Holiday[]) => {
-    return data.sort(
-      (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
-    );
-  };
+  // Sort holidays by startDate
+  const sortHolidays = (data: Holiday[]) =>
+    data.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
   // Load holidays on mount
   useEffect(() => {
@@ -69,6 +69,7 @@ export default function Holidays() {
     loadData();
   }, []);
 
+  // Add new holiday
   const onSubmit = async (values: z.infer<typeof holidaySchema>) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -90,6 +91,7 @@ export default function Holidays() {
 
       setIsDialogOpen(false);
       form.reset();
+
       toast({
         title: "Holiday Added",
         description: `${values.name} added successfully.`,
@@ -99,16 +101,30 @@ export default function Holidays() {
     }
   };
 
+  // Delete holiday (admin only)
   const handleDelete = async (id: string) => {
+    if (!user || user.role !== "admin") {
+      toast({
+        title: "Permission Denied",
+        description: "Only admins can delete holidays.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (confirm("Delete this holiday?")) {
       await firebaseService.deleteHoliday(id);
-      const data = await firebaseService.getHolidays();
-      setHolidays(sortHolidays(data));
+      setHolidays((prev) => prev.filter((h) => h.id !== id));
+      toast({
+        title: "Deleted",
+        description: "Holiday deleted successfully.",
+      });
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* Header + Add Holiday */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold font-heading">Holiday Management</h1>
@@ -183,6 +199,7 @@ export default function Holidays() {
         </Dialog>
       </div>
 
+      {/* Holiday Table */}
       <div className="bg-card rounded-xl border shadow-sm overflow-x-auto">
         <Table>
           <TableHeader>
@@ -206,9 +223,11 @@ export default function Holidays() {
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(holiday.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  {user?.role === "admin" && (
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(holiday.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
