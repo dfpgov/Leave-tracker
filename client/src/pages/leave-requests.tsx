@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase"; 
 import { firebaseService, LeaveRequest, Employee, LeaveType, calculateDays, User } from "@/lib/firebaseStorage";
 import {
   Table,
@@ -41,7 +39,6 @@ import * as z from "zod";
 import { Plus, Filter, Search, Download, X, Eye, CheckCircle, XCircle, Edit2, Trash2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { parseDate, safeFormat } from "@/lib/dateUtils";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 
@@ -135,7 +132,7 @@ export default function LeaveRequests() {
       if (leaveType.name === "Casual Leave") {
          const currentYear = new Date().getFullYear();
          const usedDays = requests
-           .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved' && parseDate(r.startDate).getFullYear() === currentYear)
+           .filter(r => r.employeeId === employee.id && r.leaveTypeName === "Casual Leave" && r.status === 'Approved' && new Date(r.startDate).getFullYear() === currentYear)
            .reduce((acc, curr) => acc + curr.approvedDays, 0);
          
          const maxDays = 20;
@@ -351,86 +348,37 @@ export default function LeaveRequests() {
     setIsDialogOpen(true);
   };
 
-const handleDelete = async (id) => {
-  // 1. Locate the specific request in your local state
-  const request = requests.find(r => r.id === id);
-  if (!request) return;
+  const handleDelete = async (id: string) => {
+    const request = requests.find(r => r.id === id);
+    if (!request) return;
 
-  // 2. User Confirmation
-  if (window.confirm(`Are you sure you want to delete the leave request for ${request.employeeName}?`)) {
-    setLoadingActionId(id);
-    
-    try {
-      // --- STEP A: FETCH THE RECORD FROM FIREBASE ---
-      // We need to get the specific attachmentUrl stored in the database
-      const docRef = doc(db, "leaveRequests", id);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        const fullData = docSnap.data();
-        const urlToDelete = fullData.attachmentUrl; // Format: https://drive.google.com/uc?id=...
-
-        // --- STEP B: DELETE FROM GOOGLE DRIVE (Via Vercel API) ---
-        if (urlToDelete) {
-          console.log("Found Drive URL. Initiating cleanup:", urlToDelete);
-          
-          try {
-            // We use a relative path. Vercel automatically routes this to /api/delete-image.ts
-            const response = await fetch('/api/delete-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ attachmentUrl: urlToDelete }),
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-              console.error('Drive API Error:', result.error);
-              // We do NOT throw an error here so that the Firebase record can still be deleted
-            } else {
-              console.log("Google Drive file deleted successfully:", result);
-            }
-          } catch (driveErr) {
-            console.error('Connection to Delete API failed:', driveErr);
-          }
-        }
-      } else {
-        console.warn("Document not found in Firebase. It may have already been deleted.");
+    if (confirm(`Are you sure you want to delete the approved leave for ${request.employeeName}?`)) {
+      setLoadingActionId(id);
+      try {
+        await firebaseService.deleteLeaveRequest(id);
+        await refreshData();
+        setSelectedIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
+        toast({
+          title: "Request Deleted",
+          description: `Approved leave for ${request.employeeName} has been deleted.`,
+        });
+      } catch (error) {
+        console.error("Error deleting request:", error);
+        toast({
+          title: "Delete Failed",
+          description: "Could not delete the leave request. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingActionId(null);
       }
-
-      // --- STEP C: DELETE THE RECORD FROM FIREBASE ---
-      // This ensures the row disappears from your table
-      await firebaseService.deleteLeaveRequest(id);
-      
-      // --- STEP D: REFRESH THE UI ---
-      await refreshData();
-      
-      // Clear selection state if applicable
-      setSelectedIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
-      });
-
-      toast({
-        title: "Deletion Successful",
-        description: `The record for ${request.employeeName} has been removed.`,
-      });
-
-    } catch (error) {
-      console.error("Critical error in delete process:", error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred. Check the console.",
-        variant: "destructive",
-      });
-    } finally {
-      // Stop the loading spinner
-      setLoadingActionId(null);
     }
-  }
-};
-  
+  };
+
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     if (confirm(`Are you sure you want to delete ${selectedIds.size} leave request(s)?`)) {
@@ -465,16 +413,37 @@ const handleDelete = async (id) => {
     });
   };
 
-  const filteredEmployees = employees.filter(e =>
-    e.name.toLowerCase().includes(employeeSearchTerm.toLowerCase())
-  );
+  const filteredEmployees = employees.filter(e => {
+    const search = employeeSearchTerm.trim().toLowerCase();
+    const name = e.name.toLowerCase();
+    if (!search) return true;
+    
+    // Exact prefix match first
+    if (name.startsWith(search)) return true;
+    
+    // Substring match
+    return name.includes(search);
+  }).sort((a, b) => {
+    const search = employeeSearchTerm.trim().toLowerCase();
+    const aName = a.name.toLowerCase();
+    const bName = b.name.toLowerCase();
+    
+    const aStarts = aName.startsWith(search);
+    const bStarts = bName.startsWith(search);
+    
+    if (aStarts && !bStarts) return -1;
+    if (!aStarts && bStarts) return 1;
+    
+    return aName.localeCompare(bName);
+  });
 
   const filteredRequests = requests.filter(request => {
-    const matchesSearch = !searchTerm || 
-      request.employeeName.toLowerCase().includes(searchTerm.toLowerCase());
+    const search = searchTerm.trim().toLowerCase();
+    const matchesSearch = !search || 
+      request.employeeName.toLowerCase().includes(search);
     const matchesEmployee = employeeFilterId === "all-employees" || request.employeeId === employeeFilterId;
-    const matchesStartDate = !startDateFilter || parseDate(request.startDate) >= new Date(startDateFilter);
-    const matchesEndDate = !endDateFilter || parseDate(request.endDate) <= new Date(endDateFilter);
+    const matchesStartDate = !startDateFilter || new Date(request.startDate) >= new Date(startDateFilter);
+    const matchesEndDate = !endDateFilter || new Date(request.endDate) <= new Date(endDateFilter);
     const matchesStatus = statusFilter === "all-statuses" || request.status === statusFilter;
     const matchesLeaveType = leaveTypeFilter === "all-leave-types" || request.leaveTypeId === leaveTypeFilter;
     
@@ -484,7 +453,7 @@ const handleDelete = async (id) => {
     if (a.status !== "Pending" && b.status === "Pending") return 1;
     if (a.status === "Approved" && b.status === "Rejected") return -1;
     if (a.status === "Rejected" && b.status === "Approved") return 1;
-    return parseDate(a.startDate).getTime() - parseDate(b.startDate).getTime();
+    return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
   });
 
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
@@ -512,7 +481,7 @@ const handleDelete = async (id) => {
 
     const uniqueEmployees = Array.from(new Set(filteredRequests.map(r => r.employeeName)));
     const dateRange = filteredRequests.length > 0 
-      ? `${safeFormat(new Date(Math.min(...filteredRequests.map(r => parseDate(r.startDate).getTime()))), "MMM d, yyyy")} to ${safeFormat(new Date(Math.max(...filteredRequests.map(r => parseDate(r.endDate).getTime()))), "MMM d, yyyy")}`
+      ? `${format(new Date(Math.min(...filteredRequests.map(r => new Date(r.startDate).getTime()))), "MMM d, yyyy")} to ${format(new Date(Math.max(...filteredRequests.map(r => new Date(r.endDate).getTime()))), "MMM d, yyyy")}`
       : "";
     
     const pdfTitle = uniqueEmployees.length === 1 
@@ -547,17 +516,17 @@ const handleDelete = async (id) => {
 
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.text(`Generated: ${safeFormat(new Date(), "PPP p")}`, 15, yPosition);
+      doc.text(`Generated: ${format(new Date(), "PPP p")}`, 15, yPosition);
       doc.text(`Total Records: ${filteredRequests.length}`, pageWidth - 15, yPosition, { align: "right" });
       yPosition += 6;
 
       doc.setFontSize(9);
       if (startDateFilter || endDateFilter) {
         const dateRangeText = startDateFilter && endDateFilter 
-          ? `${safeFormat(startDateFilter, "MMM d, yyyy")} - ${safeFormat(endDateFilter, "MMM d, yyyy")}`
+          ? `${format(new Date(startDateFilter), "MMM d, yyyy")} - ${format(new Date(endDateFilter), "MMM d, yyyy")}`
           : startDateFilter 
-            ? `From ${safeFormat(startDateFilter, "MMM d, yyyy")}`
-            : `Until ${safeFormat(endDateFilter, "MMM d, yyyy")}`;
+            ? `From ${format(new Date(startDateFilter), "MMM d, yyyy")}`
+            : `Until ${format(new Date(endDateFilter), "MMM d, yyyy")}`;
         doc.text(`Date Range: ${dateRangeText}`, 15, yPosition);
         yPosition += 5;
       }
@@ -597,8 +566,8 @@ const handleDelete = async (id) => {
         const rowData = [
           r.employeeName,
           r.leaveTypeName,
-          safeFormat(r.startDate, "MMM d, yyyy"),
-          safeFormat(r.endDate, "MMM d, yyyy"),
+          format(new Date(r.startDate), "MMM d, yyyy"),
+          format(new Date(r.endDate), "MMM d, yyyy"),
           r.approvedDays.toString(),
           r.status,
         ];
@@ -618,7 +587,7 @@ const handleDelete = async (id) => {
         }
       });
 
-      doc.save(`leave-requests-${safeFormat(new Date(), "yyyy-MM-dd")}.pdf`);
+      doc.save(`leave-requests-${format(new Date(), "yyyy-MM-dd")}.pdf`);
       toast({
         title: "PDF Downloaded",
         description: `Approved leave report (${filteredRequests.length} records) downloaded successfully.`,
@@ -674,16 +643,19 @@ const handleDelete = async (id) => {
                       <FormLabel>Employee</FormLabel>
                       <FormControl>
                         <div className="relative" ref={dropdownRef}>
-                          <Input
-                            placeholder="Search employee..."
-                            value={employeeSearchTerm}
-                            onChange={(e) => {
-                              setEmployeeSearchTerm(e.target.value);
-                              setShowEmployeeDropdown(true);
-                            }}
-                            onFocus={() => setShowEmployeeDropdown(true)}
-                            className="pl-9"
-                          />
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Search employee..."
+                              value={employeeSearchTerm}
+                              onChange={(e) => {
+                                setEmployeeSearchTerm(e.target.value);
+                                setShowEmployeeDropdown(true);
+                              }}
+                              onFocus={() => setShowEmployeeDropdown(true)}
+                              className="pl-9"
+                            />
+                          </div>
                           {showEmployeeDropdown && filteredEmployees.length > 0 && (
                             <div className="absolute top-full left-0 right-0 bg-white border border-input rounded-md shadow-md z-50 mt-1 max-h-48 overflow-y-auto">
                               {filteredEmployees.map(emp => (
@@ -704,6 +676,22 @@ const handleDelete = async (id) => {
                           )}
                         </div>
                       </FormControl>
+                      {field.value && (
+                        <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded-md">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-blue-700">Casual Leave Remaining ({new Date().getFullYear()}):</span>
+                            <span className="font-bold text-blue-800">
+                              {(() => {
+                                const currentYear = new Date().getFullYear();
+                                const usedDays = requests
+                                  .filter(r => r.employeeId === field.value && r.leaveTypeName === "Casual Leave" && r.status === 'Approved' && new Date(r.startDate).getFullYear() === currentYear)
+                                  .reduce((acc, curr) => acc + curr.approvedDays, 0);
+                                return Math.max(0, 20 - usedDays);
+                              })()} / 20 days
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -738,9 +726,11 @@ const handleDelete = async (id) => {
                     name="startDate"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Start Date</FormLabel>
                         <FormControl>
-                            <Input type="date" {...field} />
+                            <div className="space-y-1">
+                              <p><small className="text-muted-foreground uppercase font-semibold">Start Date</small></p>
+                              <Input type="date" {...field} />
+                            </div>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -751,9 +741,11 @@ const handleDelete = async (id) => {
                     name="endDate"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>End Date</FormLabel>
                         <FormControl>
-                            <Input type="date" {...field} />
+                            <div className="space-y-1">
+                              <p><small className="text-muted-foreground uppercase font-semibold">End Date</small></p>
+                              <Input type="date" {...field} />
+                            </div>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -861,7 +853,7 @@ const handleDelete = async (id) => {
                ))}
              </SelectContent>
            </Select>
-          <label className="text-sm font-medium">Start date </label>
+
            <Input 
              type="date" 
              className="w-[150px]" 
@@ -869,7 +861,6 @@ const handleDelete = async (id) => {
              onChange={(e) => { setStartDateFilter(e.target.value); setCurrentPage(1); }}
              placeholder="From"
            />
-           <label className="text-sm font-medium">End date </label>
            <Input 
              type="date" 
              className="w-[150px]" 
@@ -915,7 +906,12 @@ const handleDelete = async (id) => {
                 </TableHead>
                 <TableHead>Employee</TableHead>
                 <TableHead>Leave Type</TableHead>
-                <TableHead>Period</TableHead>
+                <TableHead>
+                  <div>
+                    <p><small className="text-muted-foreground uppercase font-semibold">Label</small></p>
+                    Start Date & End Date
+                  </div>
+                </TableHead>
                 <TableHead className="text-center">Days</TableHead>
                 <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -949,7 +945,7 @@ const handleDelete = async (id) => {
                         </span>
                     </TableCell>
                     <TableCell className="text-sm">
-                        {safeFormat(request.startDate, "MMM d")} - {safeFormat(request.endDate, "MMM d, yyyy")}
+                        {format(new Date(request.startDate), "MMM d")} - {format(new Date(request.endDate), "MMM d, yyyy")}
                     </TableCell>
                     <TableCell className="text-center font-medium">{request.approvedDays}</TableCell>
                     <TableCell className="text-center">
@@ -1037,11 +1033,11 @@ const handleDelete = async (id) => {
                               <div className="grid grid-cols-3 gap-4">
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Start Date</p>
-                                  <p className="font-medium text-foreground">{safeFormat(request.startDate, "PPP")}</p>
+                                  <p className="font-medium text-foreground">{format(new Date(request.startDate), "PPP")}</p>
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">End Date</p>
-                                  <p className="font-medium text-foreground">{safeFormat(request.endDate, "PPP")}</p>
+                                  <p className="font-medium text-foreground">{format(new Date(request.endDate), "PPP")}</p>
                                 </div>
                                 <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
                                   <p className="text-xs text-muted-foreground uppercase">Days</p>
@@ -1056,7 +1052,7 @@ const handleDelete = async (id) => {
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Submitted At</p>
-                                  <p className="font-medium text-foreground">{request.timestamp ? safeFormat(request.timestamp, "PPP p") : "-"}</p>
+                                  <p className="font-medium text-foreground">{request.timestamp ? format(new Date(request.timestamp), "PPP p") : "-"}</p>
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Approved/Rejected By</p>
@@ -1064,7 +1060,7 @@ const handleDelete = async (id) => {
                                 </div>
                                 <div className="p-3 bg-muted/30 rounded-lg">
                                   <p className="text-xs text-muted-foreground uppercase">Approved/Rejected At</p>
-                                  <p className="font-medium text-foreground">{request.updatedAt ? safeFormat(request.updatedAt, "PPP p") : "-"}</p>
+                                  <p className="font-medium text-foreground">{request.updatedAt ? format(new Date(request.updatedAt), "PPP p") : "-"}</p>
                                 </div>
                               </div>
 
