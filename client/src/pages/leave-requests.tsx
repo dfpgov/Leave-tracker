@@ -118,42 +118,7 @@ export default function LeaveRequests() {
     return user ? user.name : 'Unknown';
   };
 
-
-
-  const selectedEmployeeId = form.watch("employeeId");
-const selectedLeaveTypeId = form.watch("leaveTypeId");
-
-const selectedLeaveType = leaveTypes.find(
-  lt => lt.id === selectedLeaveTypeId
-);
-
-const showCasualBalance =
-  selectedEmployeeId &&
-  selectedLeaveType?.name === "Casual Leave";
-
-const remainingCasualDays = selectedEmployeeId
-  ? getRemainingCasualLeave(selectedEmployeeId)
-  : 0;
-
-  const getRemainingCasualLeave = (employeeId: string) => {
-  const currentYear = new Date().getFullYear();
-
-  const usedDays = requests
-    .filter(
-      r =>
-        r.employeeId === employeeId &&
-        r.leaveTypeName === "Casual Leave" &&
-        r.status === "Approved" &&
-        parseDate(r.startDate).getFullYear() === currentYear
-    )
-    .reduce((sum, r) => sum + r.approvedDays, 0);
-
-  const MAX_CASUAL_DAYS = 20;
-  return Math.max(MAX_CASUAL_DAYS - usedDays, 0);
-};
-
-  
-const onSubmit = async (values: z.infer<typeof requestSchema>) => {
+  const onSubmit = async (values: z.infer<typeof requestSchema>) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     
@@ -766,26 +731,6 @@ const handleDelete = async (id) => {
                     </FormItem>
                   )}
                 />
-
-                {showCasualBalance && (
-  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-    <div className="flex items-center justify-between">
-      <span className="text-sm font-medium text-blue-900">
-        Casual Leave Remaining
-      </span>
-      <span className="text-lg font-bold text-blue-700">
-        {remainingCasualDays} / 20 days
-      </span>
-    </div>
-
-    {remainingCasualDays === 0 && (
-      <p className="mt-1 text-xs text-red-600">
-        ⚠ No casual leave remaining for this year
-      </p>
-    )}
-  </div>
-)}
-
 
                 <div className="grid grid-cols-3 gap-4">
                   <FormField
