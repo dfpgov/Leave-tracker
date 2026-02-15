@@ -79,7 +79,7 @@ function App() {
   return (
     <div className="flex items-center justify-center min-h-screen">
       <h3 className="text-xl font-semibold">
-        The software is under construction
+       আস্সালামু আলাইকুম! 
       </h3>
     </div>
   );
