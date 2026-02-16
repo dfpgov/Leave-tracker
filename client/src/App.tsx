@@ -76,11 +76,67 @@ function Router({ isAuthenticated }: { isAuthenticated: boolean }) {
 }
 
 function App() {
+   const [isInitialized, setIsInitialized] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function init() {
+      try {
+        // Initialize Firebase
+        await initializeFirebase();
+        
+        // Seed initial data if needed
+        try {
+          await firebaseService.seedInitialData();
+        } catch (seedError) {
+          // Seeding error is non-fatal - data may already exist
+          console.log("Seed data check completed");
+        }
+        
+        // Check if user is authenticated
+        const currentUser = firebaseService.getCurrentUser();
+        setIsAuthenticated(!!currentUser);
+        setIsInitialized(true);
+      } catch (error: any) {
+        console.error("Initialization error:", error?.message || error);
+        setInitError("Failed to connect to database. Please try again.");
+        setIsInitialized(true);
+      }
+    }
+    init();
+  }, []);
+
+  if (!isInitialized) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <p className="text-muted-foreground">Connecting to database...</p>
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <p className="text-destructive">{initError}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <h3 className="text-xl font-semibold">
-The software is under construction      </h3>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Router isAuthenticated={isAuthenticated} />
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 }
 
